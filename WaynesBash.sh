@@ -8,12 +8,12 @@ if [ $(pwd) == $HOME ]; then
 fi
 
 # Get time in seconds:
-S=$(echo $(awk '{print $1}' /proc/uptime) / 1 | bc)
+S=$(awk "{print int(\$1)}" /proc/uptime )
 # if bc is not available, install it:
 type -P bc &>/dev/null || { echo "Let's install bc"; sudo apt-get install bc; }
 
 # check again to see if user turned us down, we can't use it
-if [ $S -lt 360 -o type -P bc &>/dev/null == false ]; then
+if [ $S -lt 360 -o X$(type -P bc) == X ]; then
   echo "On for "$S" seconds"
 else
   S=$(echo "scale=2; "$S" / 60" | bc)
@@ -45,4 +45,4 @@ else
   fi
 fi
 echo ""
-df
+df -h
