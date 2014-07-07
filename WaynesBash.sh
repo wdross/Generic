@@ -45,4 +45,4 @@ else
   fi
 fi
 echo ""
-df
+df -h
