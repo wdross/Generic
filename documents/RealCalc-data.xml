@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<realcalc>
+
+<!-- RealCalc Scientific Calculator -->
+
+<conversions>
+
+  <!-- Unit Conversion Data
+  
+  Each unit has the following attributes:
+    name    - long name for displaying on the 'from unit' dialog
+    symbol  - unit symbol or abbreviation
+    ratio   - the ratio of this unit to the base unit
+    offset  - (optional) the offset from zero, used where units are not a simple ratio e.g. temperature
+    inverse - (optional) set 'true' if this unit has an inverse relationship to the base unit
+  
+  The values specified for ratio and offset can be simple expressions containing '*' or '/' for
+  multiply and divide. No other operators are supported.
+  
+  For each group, choose a base unit which will have a ratio of 1.0 and an offset of 0.0
+    - for all other units in the group, set the ratio of the unit relative to the base unit
+    - for inverse relationships, set the ratio as if the unit were not inverse, and add the attribute inverse="true" (see the Fuel Consumption group below for an example)
+  
+  Conversion from source unit 'src' to destination unit 'dst' is as follows:
+    result = (input - src.offset) * (src.ratio / dst.ratio) + dst.offset
+    
+    - if 'src' is an inverse unit, then 1/input will be used in the above formula
+    - if 'dst' is an inverse unit, then 1/result will be returned
+  
+  For symbol text, use the '^' character to indicate superscript e.g. cm^2^
+  and the '~' character to indicate subscript e.g. Z~0~
+  
+  This file belongs in /mnt/sdcard/realcalc/
+
+  -->
+  
+  <group name="Speed">
+    <unit name="4096ths per 30ms Scan" symbol="cps"         ratio="0.3048 / 60 / 12 / 4096 * 60 * 33.3333" />
+    <unit name="Feet per minute"       symbol="fpm"         ratio="0.3048 / 60"             />
+    <unit name="Feet per second"       symbol="ft/s"        ratio="0.3048"                  />
+    <unit name="Meters per second"     symbol="m/s"         ratio="1.0"                     />
+    <unit name="Milli-Meters per second" symbol="mm/s"      ratio="1.0 / 1000"              />
+    <unit name="Meters per minute"     symbol="m/m"         ratio="1.0 / 60"                />
+    <unit name="Kilometers per hour"   symbol="km/h"        ratio="1000 / 3600"             />
+    <unit name="Miles per hour"        symbol="mph"         ratio="1609.344 / 3600"         />
+    <unit name="Knots"                 symbol="kt"          ratio="1852.0 / 3600"           />
+  </group>
+
+  <group name="Acceleration">
+    <unit name="Counts per 30ms scan"  symbol="cps"         ratio="1.0 / 32.185039370079 / 12.0 / 4096 * 33.3333 * 33.3333" />
+    <unit name="Inches per second^2^"  symbol="i/s^2^"      ratio="1.0 / 32.185039370079 / 12.0" />
+    <unit name="Feet per second^2^"    symbol="ft/s^2^"     ratio="1.0 / 32.185039370079"   />
+    <unit name="Milli-Meters per second^2^" symbol="mm/s^2^" ratio="1.0 / 9806.65"          />
+    <unit name="Meters per second^2^"  symbol="m/s^2^"      ratio="1.0 / 9.80665"           />
+    <unit name="Standard Gravity"      symbol="g~0~"        ratio="1.0"                     />
+  </group>  
+
+  <group name="Distance">
+    <unit name="Microns"               symbol="µm"         ratio="1.0e-6"                  />
+    <unit name="Millimetres"           symbol="mm"          ratio="0.001"                   />
+    <unit name="Centimetres"           symbol="cm"          ratio="0.01"                    />
+    <unit name="Metres"                symbol="m"           ratio="1.0"                     />
+    <unit name="Kilometres"            symbol="km"          ratio="1000.0"                  />
+    <unit name="Mils / Thou"           symbol="mil"         ratio="2.54e-5"                 />
+    <unit name="4096ths"               symbol="4096th"      ratio="0.0254 / 4096"           />
+    <unit name="Sixteenths"            symbol="16th"        ratio="0.0254 / 16"             />
+    <unit name="Inches"                symbol="in"          ratio="0.0254"                  />
+    <unit name="Feet"                  symbol="ft"          ratio="0.3048"                  />
+    <unit name="Yards"                 symbol="yd"          ratio="0.9144"                  />
+    <unit name="Miles"                 symbol="mi"          ratio="1609.344"                />
+    <unit name="Nautical Miles"        symbol="nm"          ratio="1852.0"                  />
+    <unit name="Fathoms"               symbol="fm"          ratio="1.8288"                  />
+    <unit name="Chains"                symbol="ch"          ratio="20.1168"                 />
+    <unit name="Furlongs"              symbol="fur"         ratio="201.168"                 />
+    <unit name="Light Years"           symbol="ly"          ratio="9.4607304725808e+15"     />
+  </group>
+  
+  <group name="Angular">
+    <unit name="2-byte Rev"            symbol="bdeg-2"      ratio="360.0 / 65536"           />
+    <unit name="4-byte Rev"            symbol="bdeg-4"      ratio="360.0 / 65536 / 65536"   />
+    <unit name="Degrees"               symbol="deg"         ratio="1.0"                     />
+    <unit name="Radians"               symbol="rad"         ratio="180.0 / 3.141592654"     />
+  </group>
+  
+  <group name="Area">
+    <unit name="Sq. Millimetres"       symbol="mm^2^"       ratio="1.0e-6"                  />
+    <unit name="Sq. Centimetres"       symbol="cm^2^"       ratio="1.0e-4"                  />
+    <unit name="Sq. Metres"            symbol="m^2^"        ratio="1.0"                     />
+    <unit name="Hectares"              symbol="ha"          ratio="10000.0"                 />
+    <unit name="Sq. Kilometres"        symbol="km^2^"       ratio="1000000.0"               />
+    <unit name="Sq. Inches"            symbol="sq in"       ratio="0.0254 * 0.0254"         />
+    <unit name="Sq. Feet"              symbol="sq ft"       ratio="0.3048 * 0.3048"         />
+    <unit name="Sq. Yards"             symbol="sq yd"       ratio="0.9144 * 0.9144"         />
+    <unit name="Acres"                 symbol="ac"          ratio="0.9144 * 0.9144 * 4840"  />
+    <unit name="Sq. Miles"             symbol="sq mi"       ratio="1609.344 * 1609.344"     />
+  </group>
+  
+  <group name="Volume">
+    <unit name="Millilitres (cc)"      symbol="ml"          ratio="1.0e-6"                  />
+    <unit name="Litres"                symbol="l"           ratio="0.001"                   />
+    <unit name="Cu. Metres"            symbol="m^3^"        ratio="1.0"                     />
+    <unit name="Cu. Inches"            symbol="cu in"       ratio="0.0254 * 0.0254 * 0.0254"/>
+    <unit name="Cu. Feet"              symbol="cu ft"       ratio="0.3048 * 0.3048 * 0.3048"/>
+    <unit name="Cu. Yards"             symbol="cu yd"       ratio="0.9144 * 0.9144 * 0.9144"/>
+    <unit name="Fluid Ounce (Imp)"     symbol="fl oz (Imp)" ratio="2.84130625e-5"           />
+    <unit name="Pint (Imp)"            symbol="pt (Imp)"    ratio="5.6826125e-4"            />
+    <unit name="Gallon (Imp)"          symbol="gal (Imp)"   ratio="0.00454609"              />
+    <unit name="Fluid Ounce (US)"      symbol="fl oz (US)"  ratio="2.95735295625e-5"        />
+    <unit name="Pint (US)"             symbol="pt (US)"     ratio="4.73176473e-4"           />
+    <unit name="Gallon (US)"           symbol="gal (US)"    ratio="0.003785411784"          />
+  </group>
+  
+  <group name="Mass">
+    <unit name="Micrograms"            symbol="µg"          ratio="1.0e-9"                  />
+    <unit name="Milligrams"            symbol="mg"          ratio="1.0e-6"                  />
+    <unit name="Grams"                 symbol="g"           ratio="0.001"                   />
+    <unit name="Kilograms"             symbol="kg"          ratio="1.0"                     />
+    <unit name="Tonnes"                symbol="t"           ratio="1000.0"                  />
+    <unit name="Ounces"                symbol="oz"          ratio="0.028349523125"          />
+    <unit name="Pounds"                symbol="lb"          ratio="0.45359237"              />
+    <unit name="Stone"                 symbol="st"          ratio="14 * 0.45359237"         />
+    <unit name="Hundredweight (US)"    symbol="cwt (US)"    ratio="100 * 0.45359237"        />
+    <unit name="Hundredweight (UK)"    symbol="cwt (UK)"    ratio="112 * 0.45359237"        />
+    <unit name="Short Tons (US)"       symbol="ton (US)"    ratio="2000 * 0.45359237"       />
+    <unit name="Long Tons (UK)"        symbol="ton (UK)"    ratio="2240 * 0.45359237"       />
+  </group>
+ 
+  <group name="Time">
+    <unit name="Nanoseconds"           symbol="ns"          ratio="1.0e-9"                  />
+    <unit name="Microseconds"          symbol="µs"          ratio="1.0e-6"                  />
+    <unit name="Milliseconds"          symbol="ms"          ratio="0.001"                   />
+    <unit name="Seconds"               symbol="s"           ratio="1.0"                     />
+    <unit name="Minutes"               symbol="min"         ratio="60"                      />
+    <unit name="Hours"                 symbol="h"           ratio="60*60"                   />
+    <unit name="Days"                  symbol="d"           ratio="60*60*24"                />
+    <unit name="Weeks"                 symbol="wk"          ratio="60*60*24*7"              />
+    <unit name="Years"                 symbol="yr"          ratio="60*60*24*365.25"         />
+  </group>
+  
+  <group name="Force">
+    <unit name="Micronewtons"          symbol="µN"          ratio="1.0e-6"                  />
+    <unit name="Millinewtons"          symbol="mN"          ratio="1.0e-3"                  />
+    <unit name="Newtons"               symbol="N"           ratio="1.0"                     />
+    <unit name="Kilonewtons"           symbol="kN"          ratio="1000.0"                  />
+    <unit name="Kilogram-Force"        symbol="kgf"         ratio="9.80665"                 />
+    <unit name="Pound-Force"           symbol="lb~F~"       ratio="4.44822162"              />
+  </group>
+  
+  <group name="Pressure">
+    <unit name="Pascal"                symbol="Pa"          ratio="1.0"                     />
+    <unit name="Hectopascal"           symbol="hPa"         ratio="100.0"                   />
+    <unit name="Kilopascal"            symbol="kPa"         ratio="1000.0"                  />
+    <unit name="Megapascal"            symbol="MPa"         ratio="1.0e+6"                  />
+    <unit name="Millibar"              symbol="mbar"        ratio="100.0"                   />
+    <unit name="Bar"                   symbol="bar"         ratio="100000.0"                />
+    <unit name="Atmosphere (std)"      symbol="atm"         ratio="101325.0"                />
+    <unit name="Pounds per sq. inch"   symbol="psi"         ratio="6894.75729"              />
+    <unit name="Inches of mercury"     symbol="in Hg"       ratio="3386.389"                />
+    <unit name="Torr"                  symbol="Torr"        ratio="101325/760"              />
+  </group>
+  
+  <group name="Energy">
+    <unit name="Joules"                symbol="J"           ratio="1.0"                     />
+    <unit name="Kilojoules"            symbol="kJ"          ratio="1000.0"                  />
+    <unit name="Megajoules"            symbol="MJ"          ratio="1.0e+6"                  />
+    <unit name="Kilowatt-Hours"        symbol="kWh"         ratio="3600000.0"               />
+    <unit name="Calories"              symbol="cal"         ratio="4.1868"                  />
+    <unit name="Kilocalories"          symbol="kcal"        ratio="4186.8"                  />
+    <unit name="British Thermal Units" symbol="BTU"         ratio="1055.05585262"           />
+  </group>
+  
+  <group name="Power">
+    <unit name="Watts"                 symbol="W"           ratio="1.0"                     />
+    <unit name="Kilowatts"             symbol="kW"          ratio="1000.0"                  />
+    <unit name="Megawatts"             symbol="MW"          ratio="1000000.0"               />
+    <unit name="Calories per sec"      symbol="cal/s"       ratio="4.1868"                  />
+    <unit name="BTUs per hour"         symbol="BTU/h"       ratio="1055.05585262/3600"      />
+    <unit name="Horsepower"            symbol="hp"          ratio="745.699872"              />
+  </group>
+  
+  <group name="Fuel Consumption">
+    <unit name="Kilometres per litre"   symbol="km/l"        ratio="1.0"                    />
+    <unit name="Litres per 100km"       symbol="l/100km"     ratio="100.0" inverse="true"   />
+    <unit name="Miles per gallon (Imp)" symbol="mpg (Imp)"   ratio="1.609344/4.54609"       />
+    <unit name="Miles per gallon (US)"  symbol="mpg (US)"    ratio="1.609344/3.785411784"   />
+  </group>
+  
+  <group name="Temperature">
+    <unit name="Celsius"               symbol="°C"          ratio="1.0"      offset="0.0"   />
+    <unit name="Fahrenheit"            symbol="°F"          ratio="5.0/9.0"  offset="32.0"  />
+    <unit name="Kelvin"                symbol="K"           ratio="1.0"      offset="273.15"/>
+  </group>
+  
+  <group name="Data Size">
+    <help label="Please Read">Data-size units follow the IEC standard, where kibi-, mebi- and gibi- etc are multiples of 1024 and kilo-, mega-, giga- etc are multiples of 1000.
+    
+Please see en.wikipedia.org/wiki/Kibibyte for more information.</help>
+    <unit name="Bytes"                 symbol="B"           ratio="1.0"                     />
+    <unit name="Kibibytes"             symbol="KiB"         ratio="1024"                    />
+    <unit name="Mebibytes"             symbol="MiB"         ratio="1024*1024"               />
+    <unit name="Gibibytes"             symbol="GiB"         ratio="1024*1024*1024"          />
+    <unit name="Tebibytes"             symbol="TiB"         ratio="1024*1024*1024*1024"     />
+    <unit name="Kilobytes"             symbol="kB"          ratio="1000"                    />
+    <unit name="Megabytes"             symbol="MB"          ratio="1000*1000"               />
+    <unit name="Gigabytes"             symbol="GB"          ratio="1000*1000*1000"          />
+    <unit name="Terabytes"             symbol="TB"          ratio="1000*1000*1000*1000"     />
+  </group>
+
+</conversions>
+
+<constants>
+
+  <!-- Constant Data
+  
+  Each constant has the following attributes:
+    name   - long name for the constant
+    symbol - constant symbol or abbreviation
+    value  - the numerical value of the constant
+    units  - the value's units
+  
+  For symbol and units text, use the '^' character to indicate superscript e.g. m^3^
+  and the '~' character to indicate subscript e.g. µ~0~
+  
+  -->
+  
+  <group name="Petoskey Robotics">
+    <cnst name="Rachel's distance numerator" symbol="d~i~"    value="9625.036018696874"        units="inch·pixel" />
+  </group>
+
+  <group name="Universal">
+    <cnst name="Speed of Light in Vacuum"  symbol="c"    value="299792458"        units="m·s^-1^" />
+    <cnst name="Gravitational Constant"    symbol="G"    value="6.67428e-11"      units="m^3^·kg^-1^·s^-2^" />
+    <cnst name="Planck Constant"           symbol="h"    value="6.62606896e-34"   units="J·s" />
+    <cnst name="Reduced Planck Constant"   symbol="ħ"    value="1.054571628e-34"  units="J·s" />
+    <cnst name="Standard Gravity"          symbol="g~0~" value="9.80665"          units="m·s^-2^" />
+  </group>
+  
+  <group name="Electromagnetic">
+    <cnst name="Magnetic Constant"         symbol="µ~0~" value="1.2566370614e-6"  units="N·A^-2^" />
+    <cnst name="Electric Constant"         symbol="Є~0~" value="8.854187817e-12"  units="F·m^-1^" />
+    <cnst name="Elementary Charge"         symbol="e"    value="1.602176487e-19"  units="C"       />
+    <cnst name="Magnetic Flux Quantum"     symbol="Φ~0~" value="2.067833667e-15"  units="Wb"      />
+    <cnst name="Conductance Quantum"       symbol="G~0~" value="7.7480917004e-5"  units="S"       />
+  </group>
+  
+  <group name="Atomic &amp; Nuclear">
+    <cnst name="Electron Mass"             symbol="m~e~" value="9.10938215e-31"   units="kg" />
+    <cnst name="Proton Mass"               symbol="m~p~" value="1.672621637e-27"  units="kg" />
+    <cnst name="Fine Structure Constant"   symbol="α"    value="7.2973525376e-3"  units=""   />
+    <cnst name="Rydberg Constant"          symbol="R~∞~" value="10973731.568527"  units="m^-1^" />
+    <cnst name="Bohr Radius"               symbol="a~0~" value="5.2917720859e-11"  units="m"  />
+    <cnst name="Classical Electron Radius" symbol="r~e~" value="2.8179402894e-15" units="m"  />
+  </group>
+  
+  <group name="Physico-Chemical">
+    <cnst name="Atomic Mass Unit"          symbol="u"    value="1.660538782e-27"  units="kg"        />
+    <cnst name="Avogadro Constant"         symbol="N~A~" value="6.02214179e+23"   units="mol^-1^"   />
+    <cnst name="Faraday Constant"          symbol="F"    value="96485.3399"       units="C·mol^-1^" />
+    <cnst name="Molar Gas Constant"        symbol="R"    value="8.314472"         units="J·mol^-1^·K^-1^" />
+    <cnst name="Boltzmann Constant"        symbol="k"    value="1.3806504e-23"    units="J·K^-1^"   />
+    <cnst name="Stefan-Boltzmann Constant" symbol="σ"    value="5.670400e-8"      units="W·m^-2^·K^-4^"   />
+    <cnst name="Electron Volt"             symbol="eV"   value="1.602176487e-19"  units="J"         />
+  </group>
+  
+</constants>
+
+</realcalc>
