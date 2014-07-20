@@ -15,6 +15,8 @@ $deflist=mysql_query(
 	 FROM inven 
 	 WHERE descrip LIKE '%". $query . "%'
 	 OR brand LIKE '%". $query . "%'
+	 OR upc LIKE '%". $query . "%'
+	 OR sameas LIKE '%". $query . "%'
 	 OR flavor LIKE '%". $query . "%'");
 
 while ($all = mysql_fetch_array($deflist)) {
