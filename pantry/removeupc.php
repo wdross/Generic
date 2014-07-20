@@ -1,6 +1,5 @@
 <?PHP
 
-include_once 'removeinven.php';
 include_once 'db.php';
 
 $quan = $_POST['quan'];
@@ -8,11 +7,18 @@ $upc = $_POST["upc"];
 
 if(($quan < 1)){ //if no quantity entered, start layer 1
   echo "<center><b><font face='tahoma' color='red'>** You did not enter a quantity! **</font></center></b><br />";
+}else if($upc == "REMOVE"){
+  // basically a NOP - for if we are headless just show the same dialog
+  include_once 'removeinven.php';
+}else if($upc == "ADD"){
+  include_once 'addupc.php';
 }else{ //close layer 1, start layer 1
 
   $sql_user_check = mysql_query("SELECT upc FROM inven WHERE upc='$upc'");
   $user_check = mysql_num_rows($sql_user_check);
 //  echo "user_check ".$user_check.", upc ".$upc.", _upc ".$_upc."<BR>";
+
+include_once 'removeinven.php';
 
   if($user_check <= 0 and
      strlen($upc) > 12 and

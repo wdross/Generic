@@ -19,6 +19,13 @@ $upc = $_POST["upc"];
 if(($quan < 0)){
   echo "<center><b><font face='tahoma' color='red'>** You did not enter a quantity! **</center></b><br />";
 
+}else if($upc == "REMOVE"){
+  include_once 'removeinven.php';
+}else if($upc == "ADD"){
+  // basically a NOP, show the same screen - if we are headless this is OK
+  include_once 'addinven.php';
+}else if((strlen($upc) <= 4)){
+  echo "<center><b><font face='tahoma' color='red'>** You did not enter a valid UPC! **</center></b><br />";
 }else{
   $contlist=mysql_query("SELECT * FROM inven WHERE upc='$upc'");
   $user_check = mysql_num_rows($contlist);
