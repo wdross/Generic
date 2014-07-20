@@ -42,6 +42,9 @@ if(($quan < 0)){
   $quan2 = (($quan)+($quan1));
 
   if(($user_check > 0)){
+
+include_once 'addinven.php';
+
     echo "<center><b><font face='tahoma' color='black'>Updated ".$descrip." </b><br />";
 
     $sql = mysql_query("UPDATE inven SET quant=(('$quan1')+('$_POST[quan]')) WHERE upc='$upc'");
