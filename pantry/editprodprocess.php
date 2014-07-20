@@ -36,6 +36,6 @@ echo '<font face=verdana size=4 color=red><b>';
 echo 'You have just updated<font color=black size=2><br> ' . $brand . ', ' . $descrip . ' - ' . $size . ' </font><br>Successfully';
 echo '</font></b></center>';
 echo '<br>';
-include_once 'report1.php';
+include_once 'reportzero.php';
 
 ?>
