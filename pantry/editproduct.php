@@ -19,6 +19,18 @@ $cat = $prod['cat'];
 $sameas = $prod['sameas'];
 }
 
+$total = 0;
+$num = 0;
+$badSames = '';
+$prodlist=mysql_query(
+"SELECT * FROM inven WHERE sameas='$sameas' OR upc='$upc' OR sameas='$upc' OR upc='$sameas'");
+while ($prod = mysql_fetch_array($prodlist)) {
+  $total = $total + $prod['quant'];
+  $num = $num + 1;
+  if ($prod['sameas'] != $sameas)
+    $badSames .= ' ' . $prod['sameas'] . ' listed for UPC ' . $prod['upc'];
+}
+
 ?>
 
 <HTML>
@@ -59,8 +71,7 @@ $sameas = $prod['sameas'];
 <TR><TD  width="100%"  height=25 align=center vAlign=bottom COLSPAN=2><font size=2>
 When typing a description try to keep it as simple as possible, if you are adding a can of Sweet Corn, simply
 type "Corn" whereas when adding beans you would need to type "Pinto Beans" for pintos because of variety.
-Keeping the description on the simplest level when adding will make tracking and reporting your items much
-easier later.</font></TD></TR>
+</font></TD></TR>
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> SIZE: &nbsp </TD>
 <TD  width="75%"  height=25 align=left vAlign=bottom><INPUT TYPE="TEXT" NAME="size" SIZE="15" value="<?PHP echo $size; ?>"></TD></TR>
@@ -77,7 +88,16 @@ include_once 'selectlist.html';
 ?>
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> QOH: &nbsp </TD>
-<TD  width="75%"  height=25 align=left vAlign=bottom><INPUT TYPE="TEXT" NAME="quant" SIZE="15" value="<?PHP echo $quant; ?>"></TD></TR>
+<TD  width="75%"  height=25 align=left vAlign=bottom><INPUT TYPE="TEXT" NAME="quant" SIZE="15" value="<?PHP echo $quant; ?>">
+
+<?php if (($num > 1) || ($total != $quant)): ?>
+<FONT FACE=TAHOMA SIZE=4 color=red><B> Total:
+<?php echo $total; echo ' ('; echo $num; echo " records)"; ?>
+<?php if ($badSames) echo $badSames; ?>
+</B></FONT>
+<?php endif ?>
+
+</TD></TR>
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> Same AS: &nbsp </TD>
 <TD  width="75%"  height=25 align=left vAlign=bottom><INPUT TYPE="TEXT" NAME="sameas" SIZE="20" value="<?PHP echo $sameas; ?>"></TD></TR>
