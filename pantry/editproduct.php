@@ -9,21 +9,23 @@ $prodlist=mysql_query(
         "SELECT upc, quant, brand, descrip, size, flavor, cat, sameas FROM inven WHERE upc = '$_GET[upc]'");
 
 while ($prod = mysql_fetch_array($prodlist)) {
-$upc = $prod['upc'];
-$quant = $prod['quant'];
-$brand = $prod['brand'];
-$descrip = $prod['descrip'];
-$size = $prod['size'];
-$flavor = $prod['flavor'];
-$cat = $prod['cat'];
-$sameas = $prod['sameas'];
+  $upc = $prod['upc'];
+  $quant = $prod['quant'];
+  $brand = $prod['brand'];
+  $descrip = $prod['descrip'];
+  $size = $prod['size'];
+  $flavor = $prod['flavor'];
+  $cat = $prod['cat'];
+  $sameas = $prod['sameas'];
 }
 
 $total = 0;
 $num = 0;
 $badSames = '';
-$prodlist=mysql_query(
-"SELECT * FROM inven WHERE sameas='$sameas' OR upc='$upc' OR sameas='$upc' OR upc='$sameas'");
+if ($sameas)
+  $prodlist=mysql_query("SELECT * FROM inven WHERE sameas='$sameas' OR upc='$upc' OR sameas='$upc' OR upc='$sameas'");
+else
+  $prodlist=mysql_query("SELECT * FROM inven WHERE upc='$upc' OR sameas='$upc'");
 while ($prod = mysql_fetch_array($prodlist)) {
   $total = $total + $prod['quant'];
   $num = $num + 1;
@@ -69,8 +71,7 @@ while ($prod = mysql_fetch_array($prodlist)) {
 <TD  width="75%"  height=25 align=left vAlign=bottom><INPUT TYPE="TEXT" NAME="descrip" SIZE="30" value="<?PHP echo $descrip; ?>"></TD></TR>
 
 <TR><TD  width="100%"  height=25 align=center vAlign=bottom COLSPAN=2><font size=2>
-When typing a description try to keep it as simple as possible, if you are adding a can of Sweet Corn, simply
-type "Corn" whereas when adding beans you would need to type "Pinto Beans" for pintos because of variety.
+Keep the description as simple as possible.
 </font></TD></TR>
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> SIZE: &nbsp </TD>
