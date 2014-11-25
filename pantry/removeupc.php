@@ -5,14 +5,14 @@ include_once 'db.php';
 $quan = $_POST['quan'];
 $upc = $_POST["upc"];
 
-if(($quan < 1)){ //if no quantity entered, start layer 1
+if(($quan < 1)){ //if no quantity entered
   echo "<center><b><font face='tahoma' color='red'>** You did not enter a quantity! **</font></center></b><br />";
 }else if($upc == "REMOVE"){
   // basically a NOP - for if we are headless just show the same dialog
   include_once 'removeinven.php';
 }else if($upc == "ADD"){
   include_once 'addupc.php';
-}else{ //close layer 1, start layer 1
+}else{ // check existance of given upc
 
   $sql_user_check = mysql_query("SELECT upc FROM inven WHERE upc='$upc'");
   $user_check = mysql_num_rows($sql_user_check);
@@ -35,7 +35,7 @@ include_once 'removeinven.php';
     <TBODY>
     <TR>
     <TD width=600 height=12><CENTER>';
-    echo "<center><b><font face='tahoma' color='red'>Item does not exist in database!</b><br/></font></center>";
+    echo "<center><b><font face='tahoma' color='red'>Item '".$upc."' does not exist in database!  Check your entry.</b><br/></font></center>";
     echo '</td></tr></table>';
   }else{//found upc listed, close layer 2, start layer 2
 //    echo "I made it into the lookup loop.";
