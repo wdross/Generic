@@ -85,7 +85,7 @@ Keep the description as simple as possible.
   <option value="<?php echo $cat; ?>"selected><?php echo $cat; ?></option>
 
 <?php
-include_once 'selectlist.html';
+include_once 'selectlist.php';
 ?>
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> QOH: &nbsp </TD>

@@ -57,7 +57,7 @@ When typing a description try to keep it as simple as possible.</font></TD></TR>
 <TD  width="75%"  height=25 align=left vAlign=bottom><select name="cat">
 
 <?php
-include_once 'selectlist.html';
+include_once 'selectlist.php';
 ?>
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> QOH: &nbsp </TD>
