@@ -5,7 +5,7 @@ include_once 'db.php';
 include_once 'header.html';
 include_once 'reportheader.html';
 
-$query = $_GET[data];
+$query = urldecode($_GET[data]);
 
 $sql = mysql_query(
 "ALTER TABLE inven ORDER BY cat ASC, descrip ASC, brand ASC");
