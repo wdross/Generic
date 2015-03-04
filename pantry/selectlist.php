@@ -2,6 +2,8 @@
 $loclist=mysql_query("SELECT * FROM locations");
 
 while ($loc = mysql_fetch_array($loclist)) {
-  echo '<option>'; echo $loc['locate']; echo '</option>';
+  if (strlen($loc['locate']) > 0) {
+    echo '<option>'; echo $loc['locate']; echo '</option>';
+  }
 }
 ?>
