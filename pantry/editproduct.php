@@ -82,7 +82,7 @@ Keep the description as simple as possible.
 
 <TR><TD  width="25%"  height=25 align=right vAlign=bottom> CATEGORY: &nbsp </TD>
 <TD  width="75%"  height=25 align=left vAlign=bottom><select name="cat">
-  <option value="<?php echo $cat; ?>"selected><?php echo $cat; ?></option>
+  <option value="<?php echo $cat; ?>" selected><?php echo $cat; ?></option>
 
 <?php
 include_once 'selectlist.php';
