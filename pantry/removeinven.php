@@ -41,18 +41,15 @@ include_once 'header.html';
 <TR>
 <TD width=900 height=12><CENTER><BR><BR>
 <INPUT TYPE="TEXT" NAME="quan" SIZE="2" value="1"> Quantity<BR><BR><BR>
-<INPUT TYPE='TEXT' NAME='upc' ID= 'upc' VALUE='<?php echo "$code";?>' SIZE='15'> UPC<BR><BR>
+<INPUT TYPE='TEXT' NAME='upc' ID= 'upc' VALUE='<?php echo "$code";?>' SIZE='15'> UPC<BR><BR><BR>
 <p>
 <center><a href="https://play.google.com/store/apps/details?id=com.tecit.android.barcodekbd.demo" onClick="closeWin()">Install Barcode Keyboard Demo for Droid</a></center><BR><BR><br>
 <BR>
-<INPUT TYPE="SUBMIT" NAME="submit" VALUE="Submit">  
+<INPUT TYPE="SUBMIT" NAME="submit" VALUE="Submit">
 <INPUT TYPE="RESET" onclick="toForm();">
+<p>
 </FORM>
 
 </td></tr></table>
-
-
-
-<!-- Script Size:  1.46 KB -->
 
 </body></head></html>

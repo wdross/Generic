@@ -61,7 +61,7 @@ include_once 'addinven.php';
       <TBODY>
       <TR>
       <TD width=900 height=12><CENTER>';
-    echo "<center><font face='tahoma' color='black' size='2'>You now have <b>".$quan2."</b> ".$brand.", ".$descrip." - ".$size."<br />";
+include_once 'showone.php';
     echo '</td></tr></table>';
 
     if(!$sql){
