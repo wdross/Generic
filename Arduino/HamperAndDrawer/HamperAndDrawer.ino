@@ -4,7 +4,7 @@ Code for running a secret knock lock on the Arduino UNU knockoff
 ------Wiring------
 Pin 0: Record A New Knock button.
 Pin 1: (uses the built in LED)
-Pin 2 (Analog 1): A piezo element for beeping and sensing knocks.
+Pin 2 (Analog 0): A piezo element for beeping and sensing knocks.
 Pin 3: Connects to a transistor that opens a solenoid lock when HIGH.
 */
  
@@ -14,7 +14,8 @@ const byte eepromValid = 13; // If the first byte in eeprom is this then the dat
 /* Pin definitions */
 const int programButton = 11; // Record A New Knock button.
 const int ledPin = 13; // The built in LED
-const int knockSensor = 12; // (Analog 1) for using the piezo as an input device. (aka knock sensor)
+const int DigitalKnockSensor = 12;
+const int knockSensor = 0; // (Analog 0) for using the piezo as an input device. (aka knock sensor)
 const int audioOut = 2; // (Digial 2) for using the peizo as an output device. (Thing that goes beep.)
 const int lockPin = 13; // The pin that activates the solenoid lock.
  
@@ -54,7 +55,7 @@ void setup() {
 void loop() {
   // Listen for any knock at all.
   knockSensorValue = analogRead(knockSensor);
-  knockSensorValue = digitalRead(knockSensor); // use digital button as a test
+  knockSensorValue = digitalRead(DigitalKnockSensor); // use digital button as a test
 
   if (digitalRead(programButton) == PROGRAM_BUTTON_STATE){ // is the program button pressed?
     Serial.print("[p]");
@@ -110,7 +111,7 @@ void listenToSecretKnock(){
    
   do { // Listen for the next knock or wait for it to timeout. 
     knockSensorValue = analogRead(knockSensor);
-    knockSensorValue = digitalRead(knockSensor); 
+    knockSensorValue = digitalRead(DigitalKnockSensor); 
     if (knockSensorValue >= threshold){ // Here's another knock. Save the time between knocks.
       now=millis();
       knockReadings[currentKnockNumber] = now - startTime;
@@ -292,7 +293,7 @@ void knockDelay(){
   } 
 */
   
-  while ((digitalRead(knockSensor) >= threshold) &&
+  while ((digitalRead(DigitalKnockSensor) >= threshold) &&
          (millis() - start < 1000))
     delay(10);
 }
