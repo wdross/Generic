@@ -34,9 +34,34 @@ I used a breadboard that allowed me to make the necessary connections
 to a ~5' cable that I ran to my pi.  I re-used an old IDE 40-pin connector
 which matches the newer pi 2x20 header interface.
 
+Found some interesting information regarding python on a pi:
+http://www.instructables.com/id/Raspberry-Pi-I2C-Python/
+
 Once the hardware is put together, the proper drivers need to be set up
 to enable the Linux drivers to deal with the i2c bus.
 
   sudo apt-get update
   sudo apt-get install python-smbus i2c-tools
+  # add the i2c device driver to the loaded kernel modules list
   sudo nano /etc/modules
+    <Add 'i2c-dev' to the end of the file>  
+  # give permissions to pi to be in the i2c group
+  sudo adduser pi i2c
+  reboot
+  
+at this point you should be able to see the device(s) on the i2c bus:
+i2cdetect -y 1
+
+You should get a grid of hyphens (non-existent addresses) and one of them
+filled in (48x in my case).
+
+At this point you can access the device via bash, sending and receiving
+data.  From our PDF, we see that this device needs to be told to "Start",
+after which it will (with the default 12-bit resolution) continue making
+new samples every approximately 0.75s.
+
+ i2cset -y 1 0x48 0x51            # Start conversion
+ i2cget -y 1 0x48 0xaa            # Read temperature
+ 
+a cute way of repeating the Read temperature is to use the watch command:
+ watch -n 0.7 i2cget -y 1 0x48 0xaa
