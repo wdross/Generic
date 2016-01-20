@@ -1,0 +1,16 @@
+Comparing the main (HowToSetUp.txt) pi zero concept:
+
+
+Arduino Uno Ethernet: $65.00 https://www.adafruit.com/products/418
+Piezo
+Total project
+
+This has the down side that an Ethernet connection is required
+instead of the flexibility of Wi-Fi.
+
+
+Arduino Yun Wi-Fi: $74.95 https://www.adafruit.com/products/1498
+Piezo
+Total project
+
+This is comparible to the pi zero option which came in at $39.30
