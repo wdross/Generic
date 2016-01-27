@@ -11,11 +11,14 @@ applicator.
 
 
 ##Inputs:
- - Prox that gets triggered one time per plunge
- - Prox that gets triggered one time per knot tie
+- Prox that gets triggered one time per plunge
+- Prox that gets triggered one time per knot tie
+ 
 ##Outputs:
- - 2 digit, 7-segment display (found 4" and 6" options)
+- 2 digit, 7-segment display (found 4" and 6" options)
+
 ##Components:
+
 Item | Cost
 ---- | ----
 DFRduino Pro Mini, $18     |                   $18
@@ -29,8 +32,9 @@ FTDI programming cable, $18  |                 $18
 #Potential options:
  - blue tooth could replace display, sending current stroke count to smart phone in tractor
 
-                                                 $30 Adafruit Feather Bluefruit LE, $12 premium
+                                  $30 Adafruit Feather Bluefruit LE, $12 premium
  - add wheel encoder to detect ground speed, creating a table of speeds.  If seeing
    the current bale's strokes are "high enough" that the next higher gear can be
-   used, then a visual indicator could say 'shift up'.
+   used, then a visual indicator could say 'shift up'.  Conversely, seeing too few strokes
+   can also then indicate 'shift down'.
  - total bales made in the day (saved across power cycles in EEPROM), with reset
