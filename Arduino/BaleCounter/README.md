@@ -27,6 +27,14 @@ Item | Cost
 2 - [I2C drivers, $7 ea](https://www.sparkfun.com/products/13279). I know these fit perfectly for the taller (6") segments; not sure about driving the 4" segments. | $14
 Total                                        |      $74
  
+#Logic
+- At power on, segments display two dashes (unknown number of strokes)
+- Count each plunge
+- Once the knot tie prox is triggered, the number of plunges is then placed on
+  the 2 segment display.  Should more than 100 need to be displayed, show 99.
+- This behavior will have the previous bale's plung count held active until
+  the next bale.
+ 
 #Potential options
 - blue tooth could replace display, sending current stroke count to smart phone in tractor
 
@@ -40,4 +48,5 @@ Total                                        |      $74
   can also then indicate 'shift down'.
 - add encoder to PTO to monitor for proper RPM.  Function might be able to be
   timed with existing plunger sensor, to some accuracy.
-- total bales made in the day (saved across power cycles in EEPROM), with reset
+- total bales made in the day (saved across power cycles in EEPROM), with reset function
+  to start another day.
