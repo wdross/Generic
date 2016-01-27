@@ -1,4 +1,4 @@
-Project outline
+#Project outline
 
 Intent of this project is to count the plunges in a bale of hay as they are made,
 and see that value from the cab of the tractor.  This then helps the driver decide
@@ -10,23 +10,26 @@ easiest, most readily option for power would be to tag along with the 12v hay dr
 applicator.
 
 
-Inputs:
+##Inputs:
  - Prox that gets triggered one time per plunge
  - Prox that gets triggered one time per knot tie
-Outputs:
+##Outputs:
  - 2 digit, 7-segment display (found 4" and 6" options)
-Components:
- - DFRduino Pro Mini, $18                        $18
- - FTDI programming cable, $18                   $18
- - 2, 4" RED 7-segments $10 ea        -OR-
- - 2, 4" Orange-Red 7-segments $10 ea -OR-
- - 2, 6" Red 7-segments $15 ea                   $30
- - 2 I2C drivers, $7 ea                          $16
-                                                 $82 Total
+##Components:
+Item | Cost
+---- | ----
+DFRduino Pro Mini, $18     |                   $18
+FTDI programming cable, $18  |                 $18
+- 2, 4" RED 7-segments $10 ea        -OR-
+- 2, 4" Orange-Red 7-segments $10 ea -OR-
+- 2, 6" Red 7-segments $15 ea             |      $30
+2 I2C drivers, $7 ea                    |      $16
+                                        |         $82 Total
  
-Potential options:
+#Potential options:
  - blue tooth could replace display, sending current stroke count to smart phone in tractor
-                                                 $37 wi-fi shield
+
+                                                 $30 Adafruit Feather Bluefruit LE, $12 premium
  - add wheel encoder to detect ground speed, creating a table of speeds.  If seeing
    the current bale's strokes are "high enough" that the next higher gear can be
    used, then a visual indicator could say 'shift up'.
