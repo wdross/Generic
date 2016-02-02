@@ -21,9 +21,11 @@ if(($quan < 0)){
 
 }else if($upc == "REMOVE"){
   include_once 'removeinven.php';
+  echo '<embed src="audio/Math/Subtract.wav" width=2 height=0 autostart=true>';
 }else if($upc == "ADD"){
   // basically a NOP, show the same screen - if we are headless this is OK
   include_once 'addinven.php';
+  echo '<embed src="audio/Math/Add.wav" width=2 height=0 autostart=true>';
 }else if((strlen($upc) <= 4)){
   echo "<center><b><font face='tahoma' color='red'>** You did not enter a valid UPC! **</center></b><br />";
 }else{
@@ -65,10 +67,12 @@ include_once 'showone.php';
     echo '</td></tr></table>';
 
     if(!$sql){
+      echo '<embed src="audio/Common/Im_sorry.wav" width=2 height=0 autostart=true>';
       echo 'A database error occured while adding your product.';
     }
 
   }else{
+    echo '<embed src="audio/Common/Nope.wav" width=2 height=0 autostart=true>';
     include_once 'addnew.php';
   }
 }

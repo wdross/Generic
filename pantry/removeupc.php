@@ -9,8 +9,10 @@ if(($quan < 1)){ //if no quantity entered
   echo "<center><b><font face='tahoma' color='red'>** You did not enter a quantity! **</font></center></b><br />";
 }else if($upc == "REMOVE"){
   // basically a NOP - for if we are headless just show the same dialog
+  echo '<embed src="audio/Math/Subtract.wav" width=2 height=0 autostart=true>';
   include_once 'removeinven.php';
 }else if($upc == "ADD"){
+  echo '<embed src="audio/Math/Add.wav" width=2 height=0 autostart=true>';
   include_once 'addupc.php';
 }else{ // check existance of given upc
 
@@ -35,6 +37,7 @@ include_once 'removeinven.php';
     <TD width=600 height=12><CENTER>';
     echo "<center><b><font face='tahoma' color='red'>Item '".$upc."' does not exist in database!  Check your entry.</b><br/></font></center>";
     echo '</td></tr></table>';
+    echo '<embed src="audio/Common/Im_sorry.wav" width=2 height=0 autostart=true>';
   }else{//found upc listed, close layer 2, start layer 2
     $contlist=mysql_query("SELECT * FROM inven WHERE upc='$upc'");
 
@@ -51,6 +54,7 @@ include_once 'removeinven.php';
     $quan2 = (($quan1)-($quan));
 
     if(($quan2 < 0)){ //not enough qty in stock, start layer 3
+      echo '<embed src="audio/Common/Nope.wav" width=2 height=0 autostart=true>';
       echo "<center><font face=verdana size=3><b>You do not have enough of this product in inventory to remove <br>the quantity you entered</b></font></center>";
       echo "<br><center><font face='tahoma' color='black' size='2'>You only have <b>".$quan1."</b> ".$brand.", ".$descrip." - ".$size."<br />";
       include_once 'footer.html';
@@ -69,6 +73,7 @@ include_once 'showone.php';
       echo '</td></tr></table>';
       if(!$sql){ //check for database errors, start layer 4
         echo 'A database error occured while removing your product.';
+        echo '<embed src="audio/Common/Im_sorry.wav" width=2 height=0 autostart=true>';
       } //close layer 4
     } //close layer 3
   } //close layer 2
