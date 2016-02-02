@@ -1,0 +1,12 @@
+Arduino knockoff provided by Ben:
+- ATMEGA328P-PU
+- 16 MHz
+- 6 Analog In
+- 14 Digital I/O
+  - 6 can be PWM
+  - 2 serial (Tx/Rx)
+  - need 10kOhm pull up or down resistor
+    (possible to use INPUT_PULLUP configuration)
+- USBASP (10 pin connector)
+- ICSP 6-pin connector
+- has 2 switches that can be connected to any input w/jumper

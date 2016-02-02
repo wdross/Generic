@@ -1,0 +1,73 @@
+The goal of this project is to monitor a "remote" thermometer and
+provide a notification (email; SMS) of an over-temperature situation,
+specifically for a deep freezer that you might have in a garage and
+are not accessing every day.  It also will have local annunciation
+via a piezo.
+
+I chose to use a pi zero over an Arduino due to price point:
+ . pi zero:               $5.00  https://www.adafruit.com/products/2885
+ . USB OTG adapter cable: $2.50  https://www.adafruit.com/products/1099
+ . bigger USB WiFi:      $12.95  https://www.adafruit.com/product/1012
+ . 5v power supply:       $7.95  https://www.adafruit.com/products/1995
+ . 8GB SD micro:          $9.95  https://www.adafruit.com/products/1294
+ . Piezo:                 $0.95  https://www.adafruit.com/products/1740
+ - breadboard, wire, solder
+   Projected costs:      $39.30
+
+During development, it might be necessary to see the screen, so a HDMI
+mini to HDMI adapter ($2.95 https://www.adafruit.com/products/2819) could
+prove useful (then uses normal HDMI male/male cable to monitor or TV).
+You'll also need a USB hub if you want a keyboard while connected to the Wi-Fi.
+You can forgo that and use the serial console by using this USB converter
+(https://www.adafruit.com/products/954) for $9.95 if you'd rather.
+
+It is possible to reduce project cost by forgoing the OTG adapter and solder
+the broke open USB Wi-Fi adapter directly to the zero
+(http://hackaday.com/2015/11/28/first-raspberry-pi-zero-hack-piggy-back-wifi/)
+ 
+
+You'll need a distribution of rasbian that runs on your target hardware.
+The cool thing is that this could be put on a pi that is running
+Kodi/XBMC for your entertainment needs, or serving up a pantry SQL database
+or a deskop with a web browser and can be installed along side any of those
+functions.
+
+I chose the DS1631, an i2c device that measure temperature within
+0.5C or better.  The datasheet for this device is included in this
+project folder for reference.
+
+I used a breadboard that allowed me to make the necessary connections
+to a ~5' cable that I ran to my pi.  I re-used an old IDE 40-pin connector
+which matches the newer pi 2x20 header interface.
+
+Found some interesting information regarding python on a pi:
+http://www.instructables.com/id/Raspberry-Pi-I2C-Python/
+
+Once the hardware is put together, the proper drivers need to be set up
+to enable the Linux drivers to deal with the i2c bus.
+
+  sudo apt-get update
+  sudo apt-get install python-smbus i2c-tools
+  # add the i2c device driver to the loaded kernel modules list
+  sudo nano /etc/modules
+    <Add 'i2c-dev' to the end of the file>  
+  # give permissions to pi to be in the i2c group
+  sudo adduser pi i2c
+  reboot
+  
+at this point you should be able to see the device(s) on the i2c bus:
+i2cdetect -y 1
+
+You should get a grid of hyphens (non-existent addresses) and one of them
+filled in (48x in my case).
+
+At this point you can access the device via bash, sending and receiving
+data.  From our PDF, we see that this device needs to be told to "Start",
+after which it will (with the default 12-bit resolution) continue making
+new samples every approximately 0.75s.
+
+ i2cset -y 1 0x48 0x51            # Start conversion
+ i2cget -y 1 0x48 0xaa            # Read temperature
+ 
+a cute way of repeating the Read temperature is to use the watch command:
+ watch -n 0.7 i2cget -y 1 0x48 0xaa
