@@ -6,6 +6,7 @@
 #include <mcp_can.h>
 #include <mcp_can_dfs.h>
 #include <SPI.h>
+#include "CFwTimer.h"
 
 #define NUM_OUT_BUFFERS 10
 #define NUM_IN_BUFFERS 10
@@ -21,11 +22,11 @@ struct CanEntryType {
   INT8U *pMessage;
 };
 struct CanTxType {
-  unsigned long NextSendTime;
+  CFwTimer NextSendTime;
   CanEntryType Can;
 };
 struct CanRxType {
-  unsigned long LastRxTime;
+  CFwTimer LastRxTime;
   CanEntryType Can;
 };
 

@@ -14,7 +14,7 @@ MCP_CAN CAN(SPI_CS_PIN);    // Set CS pin
 void _CanPoller_ISR()
 {
   // let's receive all messages into their registered buffer
-  if (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
+  while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
     INT8U len;
     INT8U Msg[8];
     CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
@@ -22,7 +22,7 @@ void _CanPoller_ISR()
     for (int j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
       if (COBID == CanInBuffers[j].Can.COBID) {
         // found match, record time and save the bytes
-        CanInBuffers[j].LastRxTime = millis();
+        CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
         memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
       }
     }
@@ -71,9 +71,8 @@ void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
     }
   }
   if (j < NUM_OUT_BUFFERS) {
-    long int now = millis();
     for (int i=j; i>=0; i--) {
-      CanOutBuffers[i].NextSendTime = now + CAN_TX_INTERVAL * (i+1) / (j+1);
+      CanOutBuffers[i].NextSendTime.SetTimer(CAN_TX_INTERVAL * (i+1) / (j+1));
     }
   }
   else
@@ -84,13 +83,11 @@ void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
 bool CanPoller() // returns true if any messages were transmitted this call
 {
   // see if it is time to send any of our messages at their interval
-  unsigned long now = millis();
   bool sent = false;
   for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
-    unsigned long subtract = CanOutBuffers[j].NextSendTime-now;
-    if ((now >= CanOutBuffers[j].NextSendTime && now < 0xffffffff-CAN_TX_INTERVAL) || subtract > 0x7fffffff) {
+    if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
       char ret = CAN.sendMsgBuf(CanOutBuffers[j].Can.COBID,CanOutBuffers[j].Can.Extended,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
-      CanOutBuffers[j].NextSendTime += CAN_TX_INTERVAL;
+      CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
       sent = true;
       if (ret == CAN_OK)
         OK++;
