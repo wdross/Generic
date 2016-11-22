@@ -11,38 +11,18 @@ CanRxType CanInBuffers[NUM_IN_BUFFERS];
 CanTxType CanOutBuffers[NUM_OUT_BUFFERS];
 MCP_CAN CAN(SPI_CS_PIN);    // Set CS pin
 
-void _CanPoller_ISR()
-{
-  // let's receive all messages into their registered buffer
-  while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
-    INT8U len;
-    INT8U Msg[8];
-    CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
-    INT32U COBID = CAN.getCanId(); // valid after readMsgBuf()
-    for (int j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
-      if (COBID == CanInBuffers[j].Can.COBID) {
-        // found match, record time and save the bytes
-        CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
-        memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
-      }
-    }
-  }
-}
-
-
 void CanPollerInit()
 {
-  // set up our arrays and register the receive handler
-  attachInterrupt(0, _CanPoller_ISR, FALLING); // start interrupt
+  // set up our arrays
   for (int j=0; j<NUM_OUT_BUFFERS; j++) {
     CanOutBuffers[j].Can.COBID = 0; // not used
   }
   for (int j=0; j<NUM_IN_BUFFERS; j++) {
     CanInBuffers[j].Can.COBID = 0; // not used
   }
-
 }
 
+// Set up &buf to receive len bytes of data from COBID seen on CAN-BUS
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
 {
   // set up the next available CanInBuffers[] entry to be a receiver
@@ -56,7 +36,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
   }
 }
 
-
+// set up len bytes at &buf to be sent as a PDO with given COBID
 void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
 {
   // set up the next available CanOutBuffers[] entry to be a sender
@@ -79,16 +59,31 @@ void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
     Serial.println("Attempt to set up more TX buffers than allowed");
 }
 
-
-bool CanPoller() // returns true if any messages were transmitted this call
+// Intended to be called from loop(), services both in and outbound messages
+int CanPoller() // returns true if any messages were transmitted this call
 {
+  // let's receive all messages into their registered buffer
+  while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
+    INT8U len;
+    INT8U Msg[8];
+    CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
+    INT32U COBID = CAN.getCanId(); // valid after readMsgBuf()
+    for (int j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
+      if (COBID == CanInBuffers[j].Can.COBID) {
+        // found match, record time and save the bytes
+        CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
+        memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
+      }
+    }
+  }
+
   // see if it is time to send any of our messages at their interval
-  bool sent = false;
+  int sent = 0;
   for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
     if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
       char ret = CAN.sendMsgBuf(CanOutBuffers[j].Can.COBID,CanOutBuffers[j].Can.Extended,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
       CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
-      sent = true;
+      sent++;
       if (ret == CAN_OK)
         OK++;
       else

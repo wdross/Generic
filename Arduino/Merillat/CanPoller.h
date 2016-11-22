@@ -8,7 +8,7 @@
 #include <SPI.h>
 #include "CFwTimer.h"
 
-#define NUM_OUT_BUFFERS 10
+#define NUM_OUT_BUFFERS 8
 #define NUM_IN_BUFFERS 10
 #define SPI_CS_PIN 9
 #define CAN_TX_INTERVAL 90 // ms
@@ -40,7 +40,7 @@ extern MCP_CAN CAN;
 
 void CanPollerInit();
 
-bool CanPoller();
+int CanPoller();
 
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf);
 void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf);

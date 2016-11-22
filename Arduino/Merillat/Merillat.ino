@@ -3,7 +3,6 @@
 #include "CanPoller.h"
 #include "IODefs.h"
 
-
 /* Merillat Boathouse Controller:
  *  Designing to run on:
  *  - Arduino MEGA module (from SainSmart)
@@ -17,6 +16,33 @@
  *  that needs to be extended (two rows of 2x18 pass-thru header required, 5/8" tall).
  *  Also need 2 nylon stand offs (1/8" dia screw x 7/16" body) with 2 nylon nuts
  */
+
+#include <ITDB02_Graph16.h>
+// Declare which fonts we will be using
+extern uint8_t SmallFont[];
+ITDB02 myGLCD(38,39,40,41);
+int doorLen, lDoorX, lDoorY, rDoorX, rDoorY;
+
+struct LastCoords {
+  int X,Y;
+} LeftDoor, RightDoor;
+
+// defines to be used as parameters to setColor() calls:
+#define BLACK 0,0,0
+#define WHITE 255,255,255
+#define RED 255,0,0
+#define GREEN 0,255,0
+#define BLUE 0,0,255
+
+// screen dimentions:
+#define WIDTH myGLCD.getYSize()
+#define HEIGHT myGLCD.getXSize()
+// our perpective, as we are doing landscape (the wide way)
+#define MAX_X (WIDTH-1)  // 319
+#define MAX_Y (HEIGHT-1) // 239
+
+CFwTimer sinceReset;
+
 
 void setup()
 {
@@ -32,6 +58,55 @@ void setup()
   Serial.println("CAN BUS Shield init ok!");
   Serial.print("EEPROM size = ");
   Serial.println(EEPROM.length());
+
+  // Setup the LCD
+  myGLCD.InitLCD(LANDSCAPE);
+  myGLCD.setFont(SmallFont);
+
+  // Clear the screen and draw the frame
+  myGLCD.clrScr();
+
+  myGLCD.setColor(RED);
+  myGLCD.fillRect(0, 0, MAX_X, 13); // top 13 pixels
+  myGLCD.setColor(64, 64, 64);
+  myGLCD.fillRect(0, MAX_Y-13, MAX_X, MAX_Y);
+  myGLCD.setColor(WHITE);
+  myGLCD.setBackColor(RED);
+  myGLCD.print("** Merillat Boathouse door controller **", CENTER, 1);
+  myGLCD.setColor(255, 128, 128);
+  myGLCD.setBackColor(64, 64, 64);
+  myGLCD.print("Wayne Ross", LEFT, MAX_Y-12);
+  myGLCD.print("(C)2016", RIGHT, MAX_Y-12);
+
+  // black screen to work on
+  myGLCD.setColor(BLACK);
+  myGLCD.fillRect(0, 14, MAX_X-1, MAX_Y-14);
+
+  doorLen = 2*HEIGHT/3-12;
+  lDoorX = 12; // indent enough for a letter to the left of us
+  lDoorY = 5*HEIGHT/6;
+  // mirror the right to the left
+  rDoorX = MAX_X - lDoorX - 1;
+  rDoorY = lDoorY;
+
+  LeftDoor.X = lDoorX;
+  LeftDoor.Y = lDoorY;
+  RightDoor.X = rDoorX;
+  RightDoor.Y = rDoorY;
+
+  myGLCD.setColor(BLUE);
+  myGLCD.setBackColor(BLACK);
+
+  // place some letters to be used as Input state indicators
+  // left latch
+  myGLCD.print("U", 2, MAX_Y/3);
+  myGLCD.print("L", 2, MAX_Y/3+myGLCD.getFontHeight());
+  // right latch
+  myGLCD.print("U", MAX_X-1-myGLCD.getFontWidth(), MAX_Y/3);
+  myGLCD.print("L", MAX_X-1-myGLCD.getFontWidth(), MAX_Y/3+myGLCD.getFontHeight());
+  // center latch
+  myGLCD.print("U", MAX_X/2-myGLCD.getFontWidth(), MAX_Y-5*myGLCD.getFontHeight()/2);
+  myGLCD.print("L", MAX_X/2,MAX_Y-5*myGLCD.getFontHeight()/2);
 
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
@@ -51,6 +126,8 @@ void setup()
   CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  false, (INT8U*)&Outputs.NorthDoorDIO_Tx);
   CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), true,  (INT8U*)&Outputs.NorthThruster_Tx);
   CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),false, (INT8U*)&Outputs.NorthHydraulic_Tx);
+
+  sinceReset.SetTimer(0);
 }
 
 int maxCycle = 0;
@@ -68,26 +145,35 @@ void dump() {
   Serial.println();
 }
 
+#define STEPS_CHANGE 239
+#define DEGREES_CHANGE 84.0
+#define MIN_ANGLE (90.0-DEGREES_CHANGE)
+
+int i = 0;
+int dir = 1;
+long delayUntil = 0;
+int maxSent = 0;
+
 void loop()
 {
   // service Tx routine and see if it did anything this go
-  if (CanPoller()) {
+  int sent = CanPoller();
+  if (sent) {
     // see how our cycle counters show our CPU loading is
+    if (sent > maxSent)
+      maxSent = sent;
     if (cycle > maxCycle)
       maxCycle = cycle;
     if (cycle < minCycle)
       minCycle = cycle;
     tCycle += cycle;
     counter++;
-    if (cycle < 100) {
-      // wrapped, print all our Nexts
-      dump();
-    }
     cycle=0; // restart
   }
 
   if (Serial.available()) {
-    if (Serial.read() == 'd')
+    char key = Serial.read();
+    if (key == 'd')
       dump();
     else {
       Serial.println();
@@ -95,18 +181,60 @@ void loop()
       Serial.print(OK);
       Serial.print(", Fault=");
       Serial.println(Fault);
-  
-      Serial.print("min=");
+
+      Serial.print("maxSent=");
+      Serial.print(maxSent);
+      Serial.print(", loops() min=");
       Serial.print(minCycle);
       Serial.print(", max=");
       Serial.print(maxCycle);
       Serial.print(", Avg=");
       Serial.print(tCycle/counter);
       Serial.print(" in ");
-      Serial.print(millis());
+      Serial.print(sinceReset.GetExpiredBy());
       Serial.println("ms of running");
+      if (key == 'r') { // reset
+        tCycle = counter = cycle = maxCycle = maxSent = 0;
+        minCycle = 0x7fff;
+        sinceReset.SetTimer(0); // start counting from here
+      }
     }
   }
   cycle++;
+
+
+  if (millis() < delayUntil)
+    return;
+
+  // Draw pivoting lines as doors
+  if ((i>=STEPS_CHANGE && dir>0) ||
+      (i<=0 && dir<0)) {
+    dir*=-1;
+    delayUntil = millis()+1500;
+    return;
+  }
+
+  // Pre-calculate as much of the new angle as possible
+  i+=3*dir;
+  float Angle = MIN_ANGLE + ((float)i*DEGREES_CHANGE/STEPS_CHANGE); // degrees
+//  Serial.print(Angle); Serial.print(" deg, ");
+  Angle = Angle / 180.0 * M_PI; // radians
+//  Serial.print(Angle); Serial.println(" rad");
+
+  // erase previous door position (in black)
+  myGLCD.setColor(BLACK);
+  myGLCD.drawLine(lDoorX,lDoorY,LeftDoor.X,LeftDoor.Y);
+  myGLCD.drawLine(rDoorX,rDoorY,RightDoor.X,RightDoor.Y);
+  // draw new positions in Green
+  myGLCD.setColor(GREEN);
+  LeftDoor.Y = -sin(Angle)*doorLen; // rise
+  LeftDoor.X = cos(Angle)*doorLen; // run
+  LeftDoor.Y += lDoorY; // add in our offset, same for left and right
+  RightDoor.Y = LeftDoor.Y;
+  RightDoor.X = rDoorX - LeftDoor.X; // right's X is a mirror of left's
+  LeftDoor.X += lDoorX;
+  myGLCD.drawLine(lDoorX, lDoorY,LeftDoor.X,LeftDoor.Y);
+  myGLCD.drawLine(rDoorX, rDoorY,RightDoor.X,RightDoor.Y);
+  delayUntil = millis()+12; // short delay, easier to see
 }
 
