@@ -1,0 +1,14 @@
+As of 11/21/2016:
+- Actual state sequence machine for controlling door logic
+- Alter RxTest software on Uno to respond, making a simulator
+- GUI:
+  - represent outputs
+  - inputs
+  - activate Touch functions:
+    - 'screen saver' mode -- touch to wake
+    - touch an Open/Close input request to start sequence
+
+- instrumentation shows CAN messages are bunched, 5 at a time
+  when redrawing line series (approx 5*90/6ms)
+- to improve above, could set up ISR timer for CAN stuff???
+  like http://www.rtos48.com/download/
