@@ -17,8 +17,8 @@
 
 struct CanEntryType {
   INT32U COBID;
-  char Length;
-  char Extended;
+  INT8U Length;
+  bool Extended;
   INT8U *pMessage;
 };
 struct CanTxType {
@@ -40,8 +40,13 @@ extern MCP_CAN CAN;
 
 void CanPollerInit();
 
-int CanPoller();
+void CanPoller();
 
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf);
 void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf);
+
+// list the contents of the Can[TR]xType Can[In|Out]Buffers
+// io bit value 1 is Outputs
+// io bit value 2 if Inputs
+void CanPollDisplay(int io);
 

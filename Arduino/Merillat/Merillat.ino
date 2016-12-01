@@ -1,4 +1,5 @@
 #include <EEPROM.h>
+#include <FlexiTimer2.h>
 
 #include "CanPoller.h"
 #include "IODefs.h"
@@ -13,8 +14,9 @@
  *  no connection to the MEGA module.  This is OK.
  *
  *  The touch screen connection is a set of parallel pins on a dual-row header
- *  that needs to be extended (two rows of 2x18 pass-thru header required, 5/8" tall).
- *  Also need 2 nylon stand offs (1/8" dia screw x 7/16" body) with 2 nylon nuts
+ *  that needs to be extended (a row of 2x18 pass-thru header is required, 5/8" tall).
+ *  Also need 2 nylon stand offs (1/8" dia screw x 7/16" body) with 2 nylon nuts, super
+ *    glued to the bottom of the display board.
  */
 
 #include <ITDB02_Graph16.h>
@@ -41,8 +43,7 @@ struct LastCoords {
 #define MAX_X (WIDTH-1)  // 319
 #define MAX_Y (HEIGHT-1) // 239
 
-CFwTimer sinceReset;
-
+long delayUntil;
 
 void setup()
 {
@@ -110,7 +111,7 @@ void setup()
 
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
-  CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
+  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
   CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
   CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
   CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
@@ -127,22 +128,10 @@ void setup()
   CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), true,  (INT8U*)&Outputs.NorthThruster_Tx);
   CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),false, (INT8U*)&Outputs.NorthHydraulic_Tx);
 
-  sinceReset.SetTimer(0);
-}
+  FlexiTimer2::set(1, 1, CanPoller); // Every ms!?  Seems to work!!
+  FlexiTimer2::start();
 
-int maxCycle = 0;
-float tCycle = 0;
-int minCycle = 0x7fff;
-int cycle = 0;
-int counter = 0;
-
-void dump() {
-  CFwTimer now(0); // what 'now' is
-  Serial.print("now()="); Serial.println(now.getStartTime());
-  for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
-    Serial.print("["); Serial.print(j); Serial.print("]="); Serial.println(CanOutBuffers[j].NextSendTime.getStartTime());
-  }
-  Serial.println();
+  delayUntil = millis(); // set to 'now'
 }
 
 #define STEPS_CHANGE 239
@@ -151,57 +140,23 @@ void dump() {
 
 int i = 0;
 int dir = 1;
-long delayUntil = 0;
-int maxSent = 0;
 
+// loop() no longer services the CAN I/O; that is now serviced directly
+// by the configured Timer2 hitting CanPoller() every ms
 void loop()
 {
-  // service Tx routine and see if it did anything this go
-  int sent = CanPoller();
-  if (sent) {
-    // see how our cycle counters show our CPU loading is
-    if (sent > maxSent)
-      maxSent = sent;
-    if (cycle > maxCycle)
-      maxCycle = cycle;
-    if (cycle < minCycle)
-      minCycle = cycle;
-    tCycle += cycle;
-    counter++;
-    cycle=0; // restart
-  }
-
   if (Serial.available()) {
     char key = Serial.read();
     if (key == 'd')
-      dump();
+      CanPollDisplay(1);
     else {
       Serial.println();
       Serial.print("OK=");
       Serial.print(OK);
       Serial.print(", Fault=");
       Serial.println(Fault);
-
-      Serial.print("maxSent=");
-      Serial.print(maxSent);
-      Serial.print(", loops() min=");
-      Serial.print(minCycle);
-      Serial.print(", max=");
-      Serial.print(maxCycle);
-      Serial.print(", Avg=");
-      Serial.print(tCycle/counter);
-      Serial.print(" in ");
-      Serial.print(sinceReset.GetExpiredBy());
-      Serial.println("ms of running");
-      if (key == 'r') { // reset
-        tCycle = counter = cycle = maxCycle = maxSent = 0;
-        minCycle = 0x7fff;
-        sinceReset.SetTimer(0); // start counting from here
-      }
     }
   }
-  cycle++;
-
 
   if (millis() < delayUntil)
     return;
@@ -210,16 +165,14 @@ void loop()
   if ((i>=STEPS_CHANGE && dir>0) ||
       (i<=0 && dir<0)) {
     dir*=-1;
-    delayUntil = millis()+1500;
+    delayUntil += 1500;
     return;
   }
 
   // Pre-calculate as much of the new angle as possible
   i+=3*dir;
   float Angle = MIN_ANGLE + ((float)i*DEGREES_CHANGE/STEPS_CHANGE); // degrees
-//  Serial.print(Angle); Serial.print(" deg, ");
   Angle = Angle / 180.0 * M_PI; // radians
-//  Serial.print(Angle); Serial.println(" rad");
 
   // erase previous door position (in black)
   myGLCD.setColor(BLACK);
@@ -235,6 +188,6 @@ void loop()
   LeftDoor.X += lDoorX;
   myGLCD.drawLine(lDoorX, lDoorY,LeftDoor.X,LeftDoor.Y);
   myGLCD.drawLine(rDoorX, rDoorY,RightDoor.X,RightDoor.Y);
-  delayUntil = millis()+12; // short delay, easier to see
+  delayUntil += 130; // Increment timer relative, steady moving doors
 }
 

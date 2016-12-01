@@ -1,10 +1,7 @@
-As of 11/28/2016, need to:
+As of 11/30/2016, need to:
 - Actual state sequence machine for controlling door logic
 - Alter RxTest software on Uno to respond, making a simulator
-- Also need a data logger for when tracing thruster activity
-  - currently boots at 125kBaud
-  - outputs data in CANKing format (thanks Pete!)
-  - can request baud rate change, pause/resume (thanks Pete!)
+  when a jumper or input is set (so no pgm change needed to just log)
 - GUI:
   - represent outputs
   - inputs
@@ -13,9 +10,11 @@ As of 11/28/2016, need to:
     - 'screen saver' mode -- touch to wake
     - touch an Open/Close input request to start sequence?
 
-- instrumentation shows CAN messages are bunched, 5 at a time
-  when redrawing line series (approx 5*90/6ms = 75ms to draw 4 lines)
-- Simpler solution is to use MsTimer2?  Move CAN Rx/Tx into MsTimer2,
-  leave GUI in loop(), which can be slow.  Already installed library...
-- to improve above, could set up ISR timer for CAN stuff???
-  like http://www.rtos48.com/download/
+Done:
+- Have a data logger for when tracing thruster activity
+  - currently boots at 500kBaud
+  - outputs data in CANKing format (thanks Pete!)
+  - can request baud rate change, pause/resume (thanks Pete!)
+- Fixed consistent timing of CAN message by using 1ms Timer2 to 
+  constantly check inbound and outbound queues.  Could be improved,
+  but we'll see how this goes right now.

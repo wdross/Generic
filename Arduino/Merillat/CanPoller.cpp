@@ -60,7 +60,7 @@ void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
 }
 
 // Intended to be called from loop(), services both in and outbound messages
-int CanPoller() // returns true if any messages were transmitted this call
+void CanPoller() // returns true if any messages were transmitted this call
 {
   // let's receive all messages into their registered buffer
   while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
@@ -90,6 +90,55 @@ int CanPoller() // returns true if any messages were transmitted this call
         Fault++;
     }
   }
-  return(sent);
+  return;
+}
+
+void CanPollDisplay(int io)
+{
+  CFwTimer now(0); // what 'now' is
+  Serial.print("now()="); Serial.println(now.getStartTime());
+
+  if (io & 1) {
+    Serial.println("Output buffers defined:");
+    Serial.println("Index\tCOBID\tLen\t&buffer\text?\tNextTime");
+    for (int j=0; j<NUM_OUT_BUFFERS; j++) {
+      if (CanOutBuffers[j].Can.COBID) {
+        Serial.print("[");
+        Serial.print(j);
+        Serial.print("]\t");
+        Serial.print(CanOutBuffers[j].Can.COBID,HEX);
+        Serial.print("\t");
+        Serial.print(CanOutBuffers[j].Can.Length);
+        Serial.print("\t");
+        Serial.print((long)CanOutBuffers[j].Can.pMessage);
+        Serial.print("\t");
+        Serial.print(CanOutBuffers[j].Can.Extended);
+        Serial.print("\t");
+        Serial.println(CanOutBuffers[j].NextSendTime.getStartTime());
+      }
+    }
+  }
+
+  if (io & 1 && io & 2)
+    Serial.println();
+
+  if (io & 2) {
+    Serial.println("Input buffers defined:");
+    Serial.println("Index\tCOBID\tLen\t&buffer\tLastRx");
+    for (int j=0; j<NUM_IN_BUFFERS; j++) {
+      if (CanInBuffers[j].Can.COBID) {
+        Serial.print("[");
+        Serial.print(j);
+        Serial.print("]\t");
+        Serial.print(CanInBuffers[j].Can.COBID,HEX);
+        Serial.print("\t");
+        Serial.print(CanInBuffers[j].Can.Length);
+        Serial.print("\t");
+        Serial.print((long)CanInBuffers[j].Can.pMessage);
+        Serial.print("\t");
+        Serial.println(CanInBuffers[j].LastRxTime.getStartTime());
+      }
+    }
+  }
 }
 
