@@ -16,9 +16,19 @@
 #define ESD_NORTH_HYDRAULIC 33
 
 // Enough CANOPEN stuff to define COBIDs
-#define MK_COBID(ID,FN) (ID&0x7f | (FN&7<<11)) // TODO: FIX
-#define TXPDO1 0 // TODO: FIX
-#define RXPDO1 0 // TODO: FIX
+#define MK_COBID(ID,FN) ((ID)&0x07f | (((FN)&7)<<7))
+#define EMERGENCY 1
+#define TXPDO1 3
+#define TXPDO2 5
+#define TXPDO3 7
+#define TXPDO4 9
+#define RXPDO1 4
+#define RXPDO2 6
+#define RXPDO3 8
+#define RXPDO4 10
+#define TXSDO 11
+#define RXSDO 12
+#define NODE_GUARD 14
 
 // Make up the COBIDs we'll need to go with the Inputs below
 #define SOUTHDOORDIO_RX_COBID    MK_COBID(ESD_SOUTH_DOOR_DIO_INPUTS,TXPDO1)
