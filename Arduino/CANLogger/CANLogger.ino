@@ -42,7 +42,7 @@ void setup()
   Serial.begin(115200);
   delay(100);
 
-  CurrentCANBaud = CAN_125KBPS;
+  CurrentCANBaud = CAN_500KBPS;
   while (CAN_OK != CAN.begin(CurrentCANBaud))              // init can bus
   {
     Serial.println("CAN BUS Shield init fail");
@@ -51,7 +51,7 @@ void setup()
   }
   Serial.print("Setup complete for CAN baudrate of ");
   Serial.println(CANBaudLookup[CurrentCANBaud].rate);
-  Serial.println("k");
+  Serial.println();
 
   startUpText();
   Serial.flush();
@@ -67,7 +67,7 @@ void startUpText()
   Serial.println();
   Serial.println("To END the data log: send a 'X' ");
   Serial.println();
-  Serial.println("To change the BAUD rate: send a 'B' ");
+  Serial.println("To change the BAUD rate: send a 'Bnnn', like B500 for 500kBaud");
   Serial.println();
   Serial.println("Paste data into the CAN_Messages_Tool.xlsm for parsing");
   Serial.println();
@@ -75,10 +75,12 @@ void startUpText()
   Serial.println();
   Serial.println(" Init CAN BUS Shield OKAY!");
   Serial.println();
+/*  
   Serial.println(" Hit ENTER Key to go on the BUS.");
   Serial.println();
 
   while(Serial.read() != '\n' ){}
+  */
 }
 
 
@@ -127,7 +129,6 @@ void loop()
   }
   else if(serialRead == 'B') // Baud rate request
   {
-    Serial.println("What baud rate would you like?  i.e., key in '250k' for 250kBaud: ");
     int b = 0;
     serialRead = Serial.read();
     while (serialRead >= '0' && serialRead <= '9') {
@@ -135,7 +136,7 @@ void loop()
       serialRead = Serial.read();
     }
     int nB = CurrentCANBaud;
-    for (int i=0; i<sizeof(CANBaudLookup)/sizeof(CANBaudLookup[0]); i++) {
+    for (int i=1; i<sizeof(CANBaudLookup)/sizeof(CANBaudLookup[0]); i++) {
       if (CANBaudLookup[i].kBaud == b) {
         nB = CANBaudLookup[i].CAN_Konstant;
         break;
@@ -162,6 +163,7 @@ void loop()
 
   if(CAN_MSGAVAIL == CAN.checkReceive())            // check if data coming
   {
+    time = (0.000001)*micros(); // time-stamp as early as possible as float
     CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
 
     unsigned int canId = CAN.getCanId();
@@ -173,17 +175,12 @@ void loop()
     Serial.print("  ");
     for(int i = 0; i<8; i++)    // print the data
     {
-      if(buf[i]==NULL)
-      {
-        Serial.print("00  ");   // Print 8-bytes no matter what
-      }
+      if(i >= len)
+        Serial.print("  ");   // Print 8-bytes no matter what
       else
-      {
         print_hex(buf[i],8);
-        Serial.print("  ");
-      }
+      Serial.print("  ");
     }
-    time = (0.000001)*micros();
     Serial.print("     ");
     Serial.println(time, 6);
   }
