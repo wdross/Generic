@@ -1,10 +1,12 @@
 
 #include <SPI.h>
-#include "mcp_can.h"
+#include <mcp_can.h>
+#include "IODefs.h"
+#include "CanPoller.h"
 
-const int SPI_CS_PIN = 9;
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 
-MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
+const int DOOR_SIMULATE_PIN = 12;
 
 int CurrentCANBaud = 0;
 
@@ -35,8 +37,79 @@ struct CAN_Entry {
 };
 
 
+volatile int Head = 0; // updated in ISR
+int Tail = 0;
+#define NUM_BUFFS 10
+struct CanRXType {
+  INT32U COBID;
+  INT8U Length;
+  INT8U Message[8];
+  INT32U Time;
+} volatile CanRXBuff[NUM_BUFFS];
+
+
+void RXSouthDoor() {
+  // called when we get a SouthDoor message
+  Serial.println("South door !!!");
+}
+
+
+void CanPoller()
+{
+  // let's receive all messages into their registered buffer
+  while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
+    INT8U len;
+    INT8U Msg[8];
+    CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
+    INT32U COBID = CAN.getCanId() | (CAN.isExtendedFrame()?IS_EXTENDED_COBID:0); // valid after readMsgBuf()
+
+    int Next = (Head + 1) % NUM_BUFFS;
+    if (Next != Tail) {
+      CanRXBuff[Next].COBID = COBID; // MSBit set if isExtendedFrame()
+      CanRXBuff[Next].Length = len;
+      CanRXBuff[Next].Time = millis();
+      for (int i=0; i<len; i++)
+        CanRXBuff[Next].Message[i] = Msg[i];
+      Head = Next;
+    }
+
+    for (int j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
+      if (COBID == CanInBuffers[j].Can.COBID) { // also checks that we wanted ExtendedFrame() or not
+        // found match, record time and save the bytes
+        CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
+        memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
+
+
+        // check if the pushbutton is pressed.
+        // if it is, the buttonState is HIGH, so we want to do our simulation:
+        if (digitalRead(DOOR_SIMULATE_PIN) == LOW && // jumper/switch says to SIMULATE AND
+            CanInBuffers[j].RxFunction) {             // there is a function that will emulate against this message
+          CanInBuffers[j].RxFunction(); // invoke function
+        }
+      }
+    }
+  }
+
+  // see if it is time to send any of our messages at their interval
+  for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
+    if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
+      char ret = CAN.sendMsgBuf(CanOutBuffers[j].Can.COBID&COB_ID_MASK,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+      CanOutBuffers[j].NextSendTime.SetTimer(INFINITE);
+      if (ret == CAN_OK)
+        OK++;
+      else
+        Fault++;
+    }
+  }
+  return;
+}
+
+
 void setup()
 {
+  // initialize the pushbutton pin as an input:
+  pinMode(DOOR_SIMULATE_PIN, INPUT);
+
   Serial.flush();
   delay(100);
   Serial.begin(115200);
@@ -52,6 +125,30 @@ void setup()
   Serial.print("Setup complete for CAN baudrate of ");
   Serial.println(CANBaudLookup[CurrentCANBaud].rate);
   Serial.println();
+
+  CanPollerInit();
+  // always set up CAN buffers, in case the input comes on later
+  // These sections of Tx/Rx are opposite of the definitions in Merillat.ino
+  // Data we want to collect from the bus
+  //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
+  CanPollSetTx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
+  CanPollSetTx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
+  CanPollSetTx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
+  CanPollSetTx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
+  CanPollSetTx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
+  CanPollSetTx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx);
+  CanPollSetTx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
+
+  // Data we'll transmit (evenly spaced) every CAN_TX_INTERVAL ms
+  //           COBID,                  NumberOfBytesToTransmit,          AddressOfDataToTransmit
+  CanPollSetRx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx,  RXSouthDoor);
+  CanPollSetRx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), (INT8U*)&Outputs.SouthThruster_Tx, NULL);
+  CanPollSetRx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx,NULL);
+  CanPollSetRx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx,  NULL);
+  CanPollSetRx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx, NULL);
+  CanPollSetRx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NULL);
+
+  attachInterrupt(digitalPinToInterrupt(2), CanPoller, FALLING); // start interrupt for pin 2 (Interrupt 0)
 
   startUpText();
   Serial.flush();
@@ -110,12 +207,6 @@ void print_hex(int v, int num_places)
 
 void loop()
 {
-  uint8_t len = 0;
-  uint8_t buf[8];
-  float time;
-  int count = 1;
-  signed int mySteer = 0;
-  signed int mySpeed = 0;
   char serialRead;
 
   serialRead = Serial.read();
@@ -161,28 +252,25 @@ void loop()
     }
   }
 
-  if(CAN_MSGAVAIL == CAN.checkReceive())            // check if data coming
-  {
-    time = (0.000001)*micros(); // time-stamp as early as possible as float
-    CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
-
-    unsigned int canId = CAN.getCanId();
+  if (Head != Tail) {
+    // not caught up, print out the next message we have
 
     Serial.print(" 0    ");
-    print_hex(canId, 32);
+    print_hex(CanRXBuff[Tail].COBID, 32);
     Serial.print("         ");
-    Serial.print(len);
+    Serial.print(CanRXBuff[Tail].Length);
     Serial.print("  ");
     for(int i = 0; i<8; i++)    // print the data
     {
-      if(i >= len)
+      if(i >= CanRXBuff[Tail].Length)
         Serial.print("  ");   // Print 8-bytes no matter what
       else
-        print_hex(buf[i],8);
+        print_hex(CanRXBuff[Tail].Message[i],8);
       Serial.print("  ");
     }
     Serial.print("     ");
-    Serial.println(time, 6);
+    Serial.println((0.000001)*CanRXBuff[Tail].Time, 6);
+    Tail = (Tail + 1) % NUM_BUFFS;
   }
 }
 
