@@ -37,7 +37,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
 }
 
 // set up len bytes at &buf to be sent as a PDO with given COBID
-void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
+void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
 {
   // set up the next available CanOutBuffers[] entry to be a sender
   int j=0;
@@ -45,7 +45,6 @@ void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf)
     if (CanOutBuffers[j].Can.COBID == 0) {
       CanOutBuffers[j].Can.Length = len;
       CanOutBuffers[j].Can.pMessage = buf;
-      CanOutBuffers[j].Can.Extended = extended;
       CanOutBuffers[j].Can.COBID = COBID;
       break; // we're done, now set the Tx intervals
     }
@@ -81,7 +80,8 @@ void CanPoller() // returns true if any messages were transmitted this call
   int sent = 0;
   for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
     if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
-      char ret = CAN.sendMsgBuf(CanOutBuffers[j].Can.COBID,CanOutBuffers[j].Can.Extended,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+      char ret = CAN.sendMsgBuf(CanOutBuffers[j].Can.COBID&COB_ID_MASK,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+*CanOutBuffers[j].Can.pMessage += 1; // increment first byte every TX
       CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
       sent++;
       if (ret == CAN_OK)
@@ -106,20 +106,20 @@ void CanPollDisplay(int io)
         Serial.print("[");
         Serial.print(j);
         Serial.print("]\t");
-        Serial.print(CanOutBuffers[j].Can.COBID,HEX);
+        Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
         Serial.print("\t");
         Serial.print((long)CanOutBuffers[j].Can.pMessage);
         Serial.print("\t");
-        Serial.print(CanOutBuffers[j].Can.Extended);
+        Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID);
         Serial.print("\t");
         Serial.println(CanOutBuffers[j].NextSendTime.getStartTime());
       }
     }
   }
 
-  if (io & 1 && io & 2)
+  if ((io & 1) && (io & 2))
     Serial.println();
 
   if (io & 2) {

@@ -2,7 +2,9 @@
 #include <FlexiTimer2.h>
 
 #include "CanPoller.h"
-#include "IODefs.h"
+
+// get rid of "deprecated conversion from string constant to 'char*'" messages
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 
 /* Merillat Boathouse Controller:
  *  Designing to run on:
@@ -120,13 +122,13 @@ void setup()
   CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
 
   // Data we'll transmit (evenly spaced) every CAN_TX_INTERVAL ms
-  //           COBID,                  NumberOfBytesToTransmit,          29-bit?,AddressOfDataToTransmit
-  CanPollSetTx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  false, (INT8U*)&Outputs.SouthDoorDIO_Tx);
-  CanPollSetTx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), true,  (INT8U*)&Outputs.SouthThruster_Tx);
-  CanPollSetTx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),false, (INT8U*)&Outputs.SouthHydraulic_Tx);
-  CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  false, (INT8U*)&Outputs.NorthDoorDIO_Tx);
-  CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), true,  (INT8U*)&Outputs.NorthThruster_Tx);
-  CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),false, (INT8U*)&Outputs.NorthHydraulic_Tx);
+  //           COBID,                  NumberOfBytesToTransmit,          AddressOfDataToTransmit
+  CanPollSetTx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx);
+  CanPollSetTx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), (INT8U*)&Outputs.SouthThruster_Tx);
+  CanPollSetTx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx);
+  CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx);
+  CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx);
+  CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx);
 
   FlexiTimer2::set(1, 1, CanPoller); // Every ms!?  Seems to work!!
   FlexiTimer2::start();
@@ -156,6 +158,15 @@ void loop()
       Serial.print(", Fault=");
       Serial.println(Fault);
     }
+  }
+
+  // Logic to scan for Merillat boathouse control behavior
+  if (Remote_IsRequestingOpen) {
+    // switch to OPEN state machine
+    Outputs.South_Winter_Lock_Open = lr_Latch_Request;
+  }
+  else if (Remote_IsRequestingClose) {
+    // switch to CLOSE state machine
   }
 
   if (millis() < delayUntil)

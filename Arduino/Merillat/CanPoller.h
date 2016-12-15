@@ -6,19 +6,20 @@
 #include <mcp_can.h>
 #include <mcp_can_dfs.h>
 #include <SPI.h>
-#include "CFwTimer.h"
+#include <CFwTimer.h>
+#include "IODefs.h"
 
 #define NUM_OUT_BUFFERS 8
-#define NUM_IN_BUFFERS 10
+#define NUM_IN_BUFFERS 8
 #define SPI_CS_PIN 9
 #define CAN_TX_INTERVAL 90 // ms
 
+#define COB_ID_MASK (1l<<(29+1))-1 // creates 29-bit mask (0x1FFFFFFF)
 
 
 struct CanEntryType {
   INT32U COBID;
   INT8U Length;
-  bool Extended;
   INT8U *pMessage;
 };
 struct CanTxType {
@@ -43,7 +44,7 @@ void CanPollerInit();
 void CanPoller();
 
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf);
-void CanPollSetTx(INT32U COBID, char len, bool extended, INT8U *buf);
+void CanPollSetTx(INT32U COBID, char len, INT8U *buf);
 
 // list the contents of the Can[TR]xType Can[In|Out]Buffers
 // io bit value 1 is Outputs
