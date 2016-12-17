@@ -2,6 +2,7 @@
 #include <FlexiTimer2.h>
 
 #include "CanPoller.h"
+#include "IODefs.h"
 
 // get rid of "deprecated conversion from string constant to 'char*'" messages
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -27,6 +28,9 @@ extern uint8_t SmallFont[];
 ITDB02 myGLCD(38,39,40,41);
 int doorLen, lDoorX, lDoorY, rDoorX, rDoorY;
 
+OutputType Outputs;
+InputType  Inputs;
+
 struct LastCoords {
   int X,Y;
 } LeftDoor, RightDoor;
@@ -46,6 +50,62 @@ struct LastCoords {
 #define MAX_Y (HEIGHT-1) // 239
 
 long delayUntil;
+
+// Elements that should be stored in EEPROM over power downs:
+struct {
+  struct {
+    int Min, Max;
+  } SouthDoor, NorthDoor;
+} myEE;
+
+// Enumerated States
+enum {esStopped, esOpening, esClosing} eState = esStopped;
+
+void DoorControl()
+{
+  // Logic to scan for Merillat boathouse control behavior
+  if (Remote_IsRequestingOpen) {
+    // switch to OPEN state machine
+    Outputs.South_Winter_Lock_Open = lr_Latch_Request;
+  }
+  else if (Remote_IsRequestingClose) {
+    // switch to CLOSE state machine
+  }
+
+  // Constantly monitor angle from hinges and maintain them in EEPROM to be
+  // handled over power loss.
+  if (CanPollElapsedFromLastRx(SOUTHDOORANALOG_RX_COBID) < 250) {
+    // update is recent
+    if (South_Winter_Door_Position < myEE.SouthDoor.Min)
+      myEE.SouthDoor.Min = South_Winter_Door_Position;
+    if (South_Winter_Door_Position > myEE.SouthDoor.Max)
+      myEE.SouthDoor.Max = South_Winter_Door_Position;
+  }
+  if (CanPollElapsedFromLastRx(NORTHDOORANALOG_RX_COBID) < 250) {
+    // update is recent
+    if (North_Winter_Door_Position < myEE.NorthDoor.Min)
+      myEE.NorthDoor.Min = North_Winter_Door_Position;
+    if (North_Winter_Door_Position > myEE.NorthDoor.Max)
+      myEE.NorthDoor.Max = North_Winter_Door_Position;
+  }
+
+  switch (eState) {
+    case esStopped:
+      // Ensure nothing is running
+      Outputs.South_Winter_Lock_Open = 0;
+      Outputs.Winter_Lock_Closed = 0;
+      Outputs.Upper_South_Door = 0;
+      Outputs.North_Winter_Lock_Open = 0;
+      Outputs.Upper_North_Door = 0;
+      break;
+    case esOpening:
+      // Run thru the sequence to open
+      break;
+    case esClosing:
+      // sequence to close
+      break;
+  }
+}
 
 void setup()
 {
@@ -160,14 +220,7 @@ void loop()
     }
   }
 
-  // Logic to scan for Merillat boathouse control behavior
-  if (Remote_IsRequestingOpen) {
-    // switch to OPEN state machine
-    Outputs.South_Winter_Lock_Open = lr_Latch_Request;
-  }
-  else if (Remote_IsRequestingClose) {
-    // switch to CLOSE state machine
-  }
+  DoorControl();
 
   if (millis() < delayUntil)
     return;

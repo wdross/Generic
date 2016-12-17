@@ -1,3 +1,6 @@
+#if !defined(IODEFS_INCLUDED)
+#define IODEFS_INCLUDED
+
 // This will define the I/O points for the Metillat boathouse door project
 
 #define IS_EXTENDED_COBID 0x80000000L // we'll set bit 31 (of a 29-bit COBID) to mean 'Extended'
@@ -49,7 +52,7 @@
 #define NORTHHYDRAULIC_TX_COBID MK_COBID(ESD_NORTH_HYDRAULIC,RXPDO1)
 
 
-struct {
+struct InputType {
   INT8U SouthDoorDIO_Rx;
   INT8U SouthDoorAnalog_Rx[2];
   INT8U SouthThruster_Rx[8];
@@ -61,11 +64,11 @@ struct {
   INT8U NorthThruster_Rx[8];
 
   INT8U NorthHydraulic_Rx;
-} Inputs;
+};
 
 enum LatchRequestType {lr_NoRequest, lr_Unlatch_Request, lr_Latch_Request};
 
-struct {
+struct OutputType {
   union {
     INT8U SouthDoorDIO_Tx;
     struct {
@@ -104,7 +107,7 @@ struct {
       INT8U UNUSED_NorthHydraulic_Tx:4;
     };
   };
-} Outputs;
+};
 
 // Make use of pre-defined bitwise defines from Arduino.h:
 //#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -119,14 +122,16 @@ struct {
 #define Winter_Lock_Closed_IsUnlatched     bitRead(Inputs.SouthDoorDIO_Rx,3)
 #define Upper_South_Door_IsOpen            bitRead(Inputs.SouthDoorDIO_Rx,4)
 #define Upper_South_Door_IsClosed          bitRead(Inputs.SouthDoorDIO_Rx,5)
-#define South_Winter_Door_Position         *(INT16U*)&Inputs.SouthDoorAnalog_Rx // dereference as 16 bit value
+#define South_Winter_Door_Position         *(unsigned int*)&Inputs.SouthDoorAnalog_Rx // dereference as 16 bit value
 // North door control box
 #define North_Winter_Lock_Open_IsLatched   bitRead(Inputs.NorthDoorDIO_Rx,0)
 #define North_Winter_Lock_Open_IsUnlatched bitRead(Inputs.NorthDoorDIO_Rx,1)
 #define Upper_North_Door_IsOpen            bitRead(Inputs.NorthDoorDIO_Rx,2)
 #define Upper_North_Door_IsClosed          bitRead(Inputs.NorthDoorDIO_Rx,3)
-#define North_Winter_Door_Position         *(INT16U*)&Inputs.NorthDoorAnalog_Rx // dereference as 16 bit value
+#define North_Winter_Door_Position         *(unsigned int*)&Inputs.NorthDoorAnalog_Rx // dereference as 16 bit value
 // North hydraulic
 #define Remote_IsRequestingOpen            bitRead(Inputs.NorthHydraulic_Rx,0)
 #define Remote_IsRequestingClose           bitRead(Inputs.NorthHydraulic_Rx,1)
+
+#endif // IODEFS_INCLUDED
 

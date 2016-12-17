@@ -46,6 +46,9 @@ void CanPoller();
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf);
 void CanPollSetTx(INT32U COBID, char len, INT8U *buf);
 
+// Returns the amount of ms elapsed since the last reception
+long CanPollElapsedFromLastRx(INT32U COBID);
+
 // list the contents of the Can[TR]xType Can[In|Out]Buffers
 // io bit value 1 is Outputs
 // io bit value 2 if Inputs

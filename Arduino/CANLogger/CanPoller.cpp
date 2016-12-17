@@ -33,6 +33,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf, voidFuncPtr userFN)
       CanInBuffers[j].Can.Length = len;
       CanInBuffers[j].Can.pMessage = buf;
       CanInBuffers[j].Can.COBID = COBID;
+      CanInBuffers[j].LastRxTime.SetTimer(INFINITE); // nothing yet
       CanInBuffers[j].RxFunction = userFN;
       break; // we're done
     }
@@ -62,7 +63,7 @@ void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
 void CanPollDisplay(int io)
 {
   CFwTimer now(0); // what 'now' is
-  Serial.print("now()="); Serial.println(now.getStartTime());
+  Serial.print("now()="); Serial.println(now.getEndTime());
 
   if (io & 1) {
     Serial.println("Output buffers defined:");
@@ -72,7 +73,7 @@ void CanPollDisplay(int io)
         Serial.print("[");
         Serial.print(j);
         Serial.print("]\t");
-        Serial.print(CanOutBuffers[j].Can.COBID,HEX);
+        Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
         Serial.print("\t");
@@ -80,12 +81,12 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID);
         Serial.print("\t");
-        Serial.println(CanOutBuffers[j].NextSendTime.getStartTime());
+        Serial.println(CanOutBuffers[j].NextSendTime.getEndTime());
       }
     }
   }
 
-  if (io & 1 && io & 2)
+  if ((io & 1) && (io & 2))
     Serial.println();
 
   if (io & 2) {
@@ -102,7 +103,7 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print((long)CanInBuffers[j].Can.pMessage);
         Serial.print("\t");
-        Serial.println(CanInBuffers[j].LastRxTime.getStartTime());
+        Serial.println(CanInBuffers[j].LastRxTime.getEndTime());
       }
     }
   }
