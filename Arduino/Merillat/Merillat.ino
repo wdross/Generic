@@ -63,6 +63,8 @@ enum {esStopped, esOpening, esClosing} eState = esStopped;
 
 void DoorControl()
 {
+  static CFwTimer Incrementer(1000);
+
   // Logic to scan for Merillat boathouse control behavior
   if (Remote_IsRequestingOpen) {
     // switch to OPEN state machine
@@ -97,6 +99,24 @@ void DoorControl()
       Outputs.Upper_South_Door = 0;
       Outputs.North_Winter_Lock_Open = 0;
       Outputs.Upper_North_Door = 0;
+      Outputs.SouthThrusterTx.ManufactureCode = 306;// :11;
+      Outputs.SouthThrusterTx.Reserved = 0x3; // :2, all 1s
+      Outputs.SouthThrusterTx.IndustryGroup = 4; //:3;
+      Outputs.SouthThrusterTx.ThrusterInstance = SOUTH_THRUSTER_INSTANCE; // :4;
+
+      Outputs.SouthThrusterTx.Direction = NO_DIRECTION; // :2
+      Outputs.SouthThrusterTx.Retract = NO_ACTION; // :2, unused
+      Outputs.SouthThrusterTx.ReservedB = 0; // :6, all 0s
+      Outputs.SouthThrusterTx.ReservedC = 0; // :24, all 0s
+
+      Outputs.NorthThrusterTx = Outputs.SouthThrusterTx;
+      Outputs.NorthThrusterTx.ThrusterInstance = NORTH_THRUSTER_INSTANCE; // :4;
+
+      if (Incrementer.IsTimeout()) {
+        Outputs.SouthThrusterTx.Thrust++;
+        Incrementer.IncrementTimer(200);
+      }
+
       break;
     case esOpening:
       // Run thru the sequence to open
@@ -210,7 +230,7 @@ void loop()
   if (Serial.available()) {
     char key = Serial.read();
     if (key == 'd')
-      CanPollDisplay(1);
+      CanPollDisplay(3);
     else {
       Serial.println();
       Serial.print("OK=");

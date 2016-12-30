@@ -81,8 +81,7 @@ void CanPoller() // returns true if any messages were transmitted this call
   int sent = 0;
   for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
     if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
-      char ret = CAN.sendMsgBuf(CanOutBuffers[j].Can.COBID&COB_ID_MASK,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
-*CanOutBuffers[j].Can.pMessage += 1; // increment first byte every TX
+      char ret = CAN.sendMsgBuf((INT32U)(CanOutBuffers[j].Can.COBID&COB_ID_MASK),CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
       CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
       sent++;
       if (ret == CAN_OK)
@@ -128,7 +127,7 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print((long)CanOutBuffers[j].Can.pMessage);
         Serial.print("\t");
-        Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID);
+        Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID?1:0);
         Serial.print("\t");
         Serial.println(CanOutBuffers[j].NextSendTime.getEndTime());
       }

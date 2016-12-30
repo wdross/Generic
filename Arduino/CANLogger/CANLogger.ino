@@ -181,7 +181,7 @@ void startUpText()
 }
 
 
-void print_hex(int v, int num_places)
+void print_hex(long int v, int num_places)
 {
   int mask=0, n, num_nibbles, digit;
 
@@ -269,7 +269,7 @@ void loop()
       Serial.print("  ");
     }
     Serial.print("     ");
-    Serial.println((0.000001)*CanRXBuff[Tail].Time, 6);
+    Serial.println((0.001)*CanRXBuff[Tail].Time, 3);
     Tail = (Tail + 1) % NUM_BUFFS;
   }
 }

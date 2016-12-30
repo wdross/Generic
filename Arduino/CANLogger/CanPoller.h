@@ -13,7 +13,7 @@
 #define SPI_CS_PIN 9
 #define CAN_TX_INTERVAL 90 // ms
 
-#define COB_ID_MASK (1l<<(29+1))-1 // creates 29-bit mask (0x1FFFFFFF)
+#define COB_ID_MASK 0x1FFFFFFFL // 29-bit mask
 
 typedef void (*voidFuncPtr)(void);
 

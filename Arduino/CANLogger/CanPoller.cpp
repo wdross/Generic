@@ -73,13 +73,13 @@ void CanPollDisplay(int io)
         Serial.print("[");
         Serial.print(j);
         Serial.print("]\t");
-        Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
+        Serial.print((INT32U)(CanOutBuffers[j].Can.COBID&COB_ID_MASK),HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
         Serial.print("\t");
         Serial.print((long)CanOutBuffers[j].Can.pMessage);
         Serial.print("\t");
-        Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID);
+        Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID?1:0);
         Serial.print("\t");
         Serial.println(CanOutBuffers[j].NextSendTime.getEndTime());
       }

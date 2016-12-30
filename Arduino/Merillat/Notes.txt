@@ -1,8 +1,9 @@
-As of 11/30/2016, need to:
+As of 12/30/2016, need to:
 - Actual state sequence machine for controlling door logic
 - Alter RxTest software on Uno to respond, making a simulator
   when a jumper or input is set (so no pgm change needed to just log)
 - GUI:
+  - Figure out why hardware doesn't always work together -- it did sometimes!
   - represent outputs
   - inputs
   - activate Touch functions:
@@ -18,3 +19,5 @@ Done:
 - Fixed consistent timing of CAN message by using 1ms Timer2 to 
   constantly check inbound and outbound queues.  Could be improved,
   but we'll see how this goes right now.
+- Created CAN union/structures for Thruster Tx/Rx messages
+- Confirmed Thruster TX byte order was as expected on the CANBus
