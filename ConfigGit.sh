@@ -18,3 +18,7 @@ git config --global color.status.changed 'red bold'
 git config --global color.status.untracked 'red bold'
 git config --global color.status.nobranch 'red bold'
 
+# if nano isn't available, use Notepad++:
+#echo '#!/bin/sh' > ~/bin/nano
+#echo '"C:\Program Files (x86)\Notepad++\notepad++.exe" -nosession "$@"' >> ~/bin/nano
+#chmod 755 nano
