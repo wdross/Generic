@@ -1,6 +1,8 @@
 /* Secret Knock Trinket
 Code for running a secret knock lock on the Arduino UNU knockoff
 
+Tools -> Board -> "Arduino/Genuino Uno"
+
 ------Wiring------
 Pin 0: Record A New Knock button.
 Pin 1: (uses the built in LED)
@@ -15,12 +17,19 @@ const byte eepromValid = 13; // If the first byte in eeprom is this then the dat
 const int programButton = 11; // Record A New Knock button.
 const int ledPin = 13; // The built in LED
 const int DigitalKnockSensor = 12;
+#ifdef USE_PIEZO   // as the knock/input sensor
 const int knockSensor = 0; // (Analog 0) for using the piezo as an input device. (aka knock sensor)
 const int audioOut = 2; // (Digial 2) for using the peizo as an output device. (Thing that goes beep.)
+#endif
 const int lockPin = 13; // The pin that activates the solenoid lock.
  
 /*Tuning constants. Changing the values below changes the behavior of the device.*/
-int threshold = 1; // Minimum signal from the piezo to register as a knock. Higher = less sensitive. Typical values 1 - 10
+#ifdef USE_PIEZO
+#define THRESHOLD 10 // Minimum signal from the piezo to register as a knock. Higher = less sensitive. Typical values 1 - 10
+#else
+#define THRESHOLD 1 // digital input: 1 is pressed
+#endif
+
 const int rejectValue = 25; // If an individual knock is off by this percentage of a knock we don't unlock. Typical values 10-30
 const int averageRejectValue = 15; // If the average timing of all the knocks is off by this percent we don't unlock. Typical values 5-20
 const int knockFadeTime = 150; // Milliseconds we allow a knock to fade before we listen for another one. (Debounce timer.)
@@ -37,15 +46,20 @@ boolean programModeActive = false; // True if we're trying to program a new knoc
  
 void setup() {
   // Open serial communications and wait for port to open:
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
   pinMode(ledPin, OUTPUT); 
   pinMode(lockPin, OUTPUT);
-  pinMode(knockSensor, INPUT_PULLUP);
+#ifdef USE_PIEZO
+  // don't need to configur analog inputs
+#else
+  pinMode(DigitalKnockSensor, INPUT_PULLUP);
+#endif
   pinMode(programButton, INPUT_PULLUP);
+
   readSecretKnock(); // Load the secret knock (if any) from EEPROM.
 
   // play back whatever the secret is...
@@ -54,8 +68,11 @@ void setup() {
  
 void loop() {
   // Listen for any knock at all.
+#ifdef USE_PIEZO
   knockSensorValue = analogRead(knockSensor);
+#else
   knockSensorValue = digitalRead(DigitalKnockSensor); // use digital button as a test
+#endif
 
   if (digitalRead(programButton) == PROGRAM_BUTTON_STATE){ // is the program button pressed?
     Serial.print("[p]");
@@ -81,7 +98,7 @@ void loop() {
     delay(250); // Another cheap debounce. Longer because releasing the button can sometimes be sensed as a knock.
   }
 
-  if (knockSensorValue >= threshold){
+  if (knockSensorValue >= THRESHOLD){
     if (programModeActive == true){ // Blink the LED when we sense a knock.
       digitalWrite(ledPin, LOW);
     } else {
@@ -110,9 +127,12 @@ void listenToSecretKnock(){
   int now = millis(); 
    
   do { // Listen for the next knock or wait for it to timeout. 
+#ifdef USE_PIEZO
     knockSensorValue = analogRead(knockSensor);
-    knockSensorValue = digitalRead(DigitalKnockSensor); 
-    if (knockSensorValue >= threshold){ // Here's another knock. Save the time between knocks.
+#else
+    knockSensorValue = digitalRead(DigitalKnockSensor);
+#endif
+    if (knockSensorValue >= THRESHOLD){ // Here's another knock. Save the time between knocks.
       now=millis();
       knockReadings[currentKnockNumber] = now - startTime;
       currentKnockNumber ++; 
@@ -253,6 +273,8 @@ void readSecretKnock(){
     }
     Serial.print("\n");
   }
+  else
+    Serial.print("No EEPROM data\n");
 }
 
 //saves a new pattern to eeprom
@@ -285,6 +307,7 @@ void playbackKnock(int maxKnockInterval){
 // Deals with the knock delay thingy.
 void knockDelay(){
   long int start = millis();
+#ifdef USE_PIEZO
 /*  int itterations = (knockFadeTime / 20); // Wait for the peak to dissipate before listening to next one.
   for (int i=0; i < itterations; i++){
     delay(10);
@@ -292,10 +315,11 @@ void knockDelay(){
     delay(10);
   } 
 */
-  
-  while ((digitalRead(DigitalKnockSensor) >= threshold) &&
+#else
+  while ((digitalRead(DigitalKnockSensor) >= THRESHOLD) &&
          (millis() - start < 1000))
-    delay(10);
+    ;
+#endif
 }
 
  
@@ -304,11 +328,19 @@ void knockDelay(){
 // delayTime = time in microseconds between ticks. (smaller=higher pitch tone.)
 void chirp(int playTime, int delayTime){
   long loopTime = (playTime * 1000L) / delayTime;
+#ifdef USE_PIEZO
   pinMode(audioOut, OUTPUT);
+#endif
   for(int i=0; i < loopTime; i++){
+#ifdef USE_PIEZO
     digitalWrite(audioOut, HIGH);
+#endif
     delayMicroseconds(delayTime);
+#ifdef USE_PIEZO
     digitalWrite(audioOut, LOW);
+#endif
   }
+#ifdef USE_PIEZO
   pinMode(audioOut, INPUT);
+#endif
 }
