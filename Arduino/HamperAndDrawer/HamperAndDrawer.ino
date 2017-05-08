@@ -7,32 +7,26 @@ Tools -> Board -> "Arduino/Genuino Uno"
 Pin 0: Record A New Knock button.
 Pin 1: (uses the built in LED)
 Pin 2 (Analog 0): A piezo element for beeping and sensing knocks.
-Pin 3: Connects to a transistor that opens a solenoid lock when HIGH.
+
 */
  
 #include <EEPROM.h>
-const byte eepromValid = 13; // If the first byte in eeprom is this then the data is valid.
- 
+const byte eepromValid = 13; // If the first byte in eeprom is this then we assume the data is valid.
+
 /* Pin definitions */
 const int programButton = 11; // Record A New Knock button.
 const int ledPin = 13; // The built in LED
 const int DigitalKnockSensor = 12;
 #ifdef USE_PIEZO   // as the knock/input sensor
-const int knockSensor = 0; // (Analog 0) for using the piezo as an input device. (aka knock sensor)
 const int audioOut = 2; // (Digial 2) for using the peizo as an output device. (Thing that goes beep.)
 #endif
 const int lockPin = 13; // The pin that activates the solenoid lock.
  
 /*Tuning constants. Changing the values below changes the behavior of the device.*/
-#ifdef USE_PIEZO
-#define THRESHOLD 10 // Minimum signal from the piezo to register as a knock. Higher = less sensitive. Typical values 1 - 10
-#else
 #define THRESHOLD 1 // digital input: 1 is pressed
-#endif
 
 const int rejectValue = 25; // If an individual knock is off by this percentage of a knock we don't unlock. Typical values 10-30
 const int averageRejectValue = 15; // If the average timing of all the knocks is off by this percent we don't unlock. Typical values 5-20
-const int knockFadeTime = 150; // Milliseconds we allow a knock to fade before we listen for another one. (Debounce timer.)
 const int lockOperateTime = 2500; // Milliseconds that we operate the lock solenoid latch before releasing it.
 const int maximumKnocks = 20; // Maximum number of knocks to listen for.
 const int knockComplete = 1200; // Longest time to wait for a knock before we assume that it's finished. (milliseconds)
@@ -53,11 +47,7 @@ void setup() {
 
   pinMode(ledPin, OUTPUT); 
   pinMode(lockPin, OUTPUT);
-#ifdef USE_PIEZO
-  // don't need to configur analog inputs
-#else
   pinMode(DigitalKnockSensor, INPUT_PULLUP);
-#endif
   pinMode(programButton, INPUT_PULLUP);
 
   readSecretKnock(); // Load the secret knock (if any) from EEPROM.
@@ -68,11 +58,7 @@ void setup() {
  
 void loop() {
   // Listen for any knock at all.
-#ifdef USE_PIEZO
-  knockSensorValue = analogRead(knockSensor);
-#else
-  knockSensorValue = digitalRead(DigitalKnockSensor); // use digital button as a test
-#endif
+  knockSensorValue = digitalRead(DigitalKnockSensor);
 
   if (digitalRead(programButton) == PROGRAM_BUTTON_STATE){ // is the program button pressed?
     Serial.print("[p]");
@@ -127,11 +113,7 @@ void listenToSecretKnock(){
   int now = millis(); 
    
   do { // Listen for the next knock or wait for it to timeout. 
-#ifdef USE_PIEZO
-    knockSensorValue = analogRead(knockSensor);
-#else
     knockSensorValue = digitalRead(DigitalKnockSensor);
-#endif
     if (knockSensorValue >= THRESHOLD){ // Here's another knock. Save the time between knocks.
       now=millis();
       knockReadings[currentKnockNumber] = now - startTime;
@@ -222,7 +204,7 @@ boolean validateKnock(){
     for (i=0; i < maximumKnocks; i++){ // Normalize the time between knocks. (the longest time = 100)
       secretCode[i] = map(knockReadings[i], 0, maxKnockInterval, 0, 100); 
     }
-    saveSecretKnock(); // save the result to EEPROM
+    saveSecretKnock(secretKnockCount); // save the result to EEPROM
     programModeActive = false;
     playbackKnock(maxKnockInterval);
     return false;
@@ -263,26 +245,38 @@ boolean validateKnock(){
 void readSecretKnock(){
   byte reading;
   int i;
+  byte eeCode[maximumKnocks]; // place to store EE Data
   reading = EEPROM.read(0);
   if (reading == eepromValid){ // only read EEPROM if the signature byte is correct.
     Serial.print("EEPROM :");
-    for (int i=0; i < maximumKnocks ;i++){
-      secretCode[i] = EEPROM.read(i+1);
+    reading = 0; // count active knocks
+    for (int i=0; i < maximumKnocks; i++){
+      eeCode[i] = EEPROM.read(i+1);
+      if (eeCode[i] > 0)
+        reading++;
       Serial.print(" ");
       Serial.print(secretCode[i]);
     }
-    Serial.print("\n");
+    if (EEPROM.read(maximumKnocks+2) == reading) {
+      Serial.println(" Valid!");
+      for (int i=0; i<maximumKnocks; i++) {
+        secretCode[i] = eeCode[i]; // copy values over
+      }
+    }
+    else
+      Serial.println(" INVALID, not used!");
   }
   else
     Serial.print("No EEPROM data\n");
 }
 
 //saves a new pattern to eeprom
-void saveSecretKnock(){
+void saveSecretKnock(int activeCount){
   EEPROM.write(0, 0); // clear out the signature. That way we know if we didn't finish the write successfully.
   for (int i=0; i < maximumKnocks; i++){
     EEPROM.write(i+1, secretCode[i]);
   }
+  EEPROM.write(maximumKnocks+2,activeCount); // additional value will be checked for EEPROM valid
   EEPROM.write(0, eepromValid); // all good. Write the signature so we'll know it's all good.
 }
 
@@ -307,19 +301,9 @@ void playbackKnock(int maxKnockInterval){
 // Deals with the knock delay thingy.
 void knockDelay(){
   long int start = millis();
-#ifdef USE_PIEZO
-/*  int itterations = (knockFadeTime / 20); // Wait for the peak to dissipate before listening to next one.
-  for (int i=0; i < itterations; i++){
-    delay(10);
-    analogRead(knockSensor); // This is done in an attempt to defuse the analog sensor's capacitor that will give false readings on high impedance sensors.
-    delay(10);
-  } 
-*/
-#else
   while ((digitalRead(DigitalKnockSensor) >= THRESHOLD) &&
          (millis() - start < 1000))
     ;
-#endif
 }
 
  
