@@ -22,6 +22,7 @@ int in2Pin = 9;
 
 #define ENCODER_A 6
 #define ENCODER_B 7
+#define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 Encoder encoder(ENCODER_A, ENCODER_B);
 int32_t lastEncoder = 0;
@@ -262,7 +263,7 @@ static desiredDrawerEnum desiredDrawerLatch;
     // We need 19.5" of travel in either positive or negative direction,
     // depending upon switch activation.  With our 22 tooth pulley (exactly 4.4" diameter),
     // we need 19.5/4.4 = 4.43 revolutions on our 8192 cpr encoder, yielding a movement of 36305 counts
-#define IDLER_PULLEY_TOOTH_COUNT 22
+#define IDLER_PULLEY_TOOTH_COUNT 22.0
 // Our belt has 5 teeth for every inch, so 0.2"/tooth
 #define IDLER_PULLEY_CIRCUMFERENCE (0.2*IDLER_PULLEY_TOOTH_COUNT) // 4.4 inches 
 #define CPI (8192.0/IDLER_PULLEY_CIRCUMFERENCE) // 1861.8 counts in an inch of movement
@@ -320,8 +321,6 @@ static desiredDrawerEnum desiredDrawerLatch;
   else
     speed = 0;
   setMotor(abs(speed), speed<0);
-  if (speed == 0)
-    digitalWrite(LED_PIN, LOW); // ensure off after movement
 
 
   
