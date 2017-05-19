@@ -1,33 +1,47 @@
 // Tools->Board: Arduino Duemilanove or Diecimila, ATmega328
 
 #include <CFwTimer.h>
+#include <CFwDebouncedDigitalInput.h>
 
 int enablePin = 11;
 int in1Pin = 10;
 int in2Pin = 9;
 
+// a test mechanism: when defined, JUST_IN_OUT_SWITCHES will activate full speed request in the direction
+// of switch activation.  Just so we can see how the motor works the first time it is installed.
+#undef JUST_IN_OUT_SWITCHES
 
-#define LAUNDRY_SWITCH  PIN_A0
-#define BATHROOM_SWITCH PIN_A1
+// These I/O item run to actual switches or outputs
+#define LAUNDRY_SWITCH      PIN_A0
+#define BATHROOM_SWITCH     PIN_A1
+#define FULLY_OPEN_LAUNDRY  PIN_A2
+#define FULLY_OPEN_BATHROOM PIN_A3
+#define CENTERED_DRAWER     PIN_A4
 
-#define BATHROOM_OPEN_DELAY 500
+#define ENCODER_A           6
+#define ENCODER_B           7
+
+// Upper Drawer
+#define UNLATCH_REQUEST     12
+
+
+#define BATHROOM_OPEN_DELAY 750
 #define LAUNDRY_OPEN_DELAY BATHROOM_OPEN_DELAY
 
 
+// I/O that go to other components on our breadboard
 #define UNLATCH_ENABLE_OUT 4
 #define UNLATCH_PWM 5
-#define UNLATCH_REQUEST 12
 #define LED_PIN 13 // The built in LED
 
 
-#define ENCODER_A 6
-#define ENCODER_B 7
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 Encoder encoder(ENCODER_A, ENCODER_B);
 int32_t lastEncoder = 0;
 CFwTimer lastEncoderDisplay(0);
 #define ENCODER_OUTPUT_NOFASTER_THAN 1000
+bool encoderWorking = false; // by default, assume that darn encoder doesn't work
 
 // We'll have the desired state of the drawer be encapsulated by the
 // value of desiredDrawer: 1=Bathroom; 0=Centered/Closed; -1:Laundry
@@ -35,12 +49,28 @@ enum desiredDrawerEnum { ddBathroom=-1, ddCentered, ddLaundry } desiredDrawer = 
 desiredDrawerEnum actualDrawer = ddCentered;
 desiredDrawerEnum watchingDrawer;
 CFwTimer MaxTravelTimer;
+CFwTimer WaitBeforeMoveTimer;
 enum { waitingForClosed, delayOpening, isClosed, isOpening, waitingForRelease } inputState = waitingForClosed;
 
-bool lastBathroom;
-bool bathroom;
-bool lastLaundry;
-bool laundry;
+
+// We need 19.5" of travel in either positive or negative direction,
+// depending upon switch activation.  With our 22 tooth pulley (exactly 4.4" circumference),
+// we need 19.5/4.4 = 4.43 revolutions on our 8192 cpr encoder, yielding a movement of 36305 counts
+#define IDLER_PULLEY_TOOTH_COUNT 22.0
+// Our belt has 5 teeth for every inch, so 0.2"/tooth
+#define IDLER_PULLEY_CIRCUMFERENCE (0.2*IDLER_PULLEY_TOOTH_COUNT) // 4.4 inches
+#define CPI (8192.0/IDLER_PULLEY_CIRCUMFERENCE) // 1861.8 counts in an inch of movement
+#define DESIRED_MOVEMENT (19.5*CPI) // 36305
+#define COUNTS_TO_INCHES(counts) (counts/CPI)
+
+
+
+
+CFwDebouncedDigitalInput* bathroom;
+CFwDebouncedDigitalInput* laundry;
+CFwDebouncedDigitalInput* bathroomDrawerLimitSwitch;
+CFwDebouncedDigitalInput* laundryDrawerLimitSwitch;
+CFwDebouncedDigitalInput* centeredDrawerLimitSwitch;
 
 
 
@@ -54,8 +84,6 @@ void setup()
   pinMode(in1Pin, OUTPUT);
   pinMode(in2Pin, OUTPUT);
   pinMode(enablePin, OUTPUT);
-  pinMode(BATHROOM_SWITCH, INPUT_PULLUP);
-  pinMode(LAUNDRY_SWITCH, INPUT_PULLUP);
 
   pinMode(UNLATCH_ENABLE_OUT,OUTPUT);
   pinMode(UNLATCH_REQUEST, INPUT_PULLUP);
@@ -66,11 +94,12 @@ void setup()
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
-  // seed initial values with actual readings
-  lastBathroom = (digitalRead(BATHROOM_SWITCH));
-  bathroom = lastBathroom;
-  lastLaundry = (digitalRead(LAUNDRY_SWITCH));
-  laundry = lastLaundry;
+  // set up input and seed initial values with actual readings
+  bathroom = new CFwDebouncedDigitalInput(BATHROOM_SWITCH);
+  laundry  = new CFwDebouncedDigitalInput(LAUNDRY_SWITCH);
+  bathroomDrawerLimitSwitch = new CFwDebouncedDigitalInput(FULLY_OPEN_BATHROOM);
+  laundryDrawerLimitSwitch  = new CFwDebouncedDigitalInput(FULLY_OPEN_LAUNDRY);
+  centeredDrawerLimitSwitch = new CFwDebouncedDigitalInput(CENTERED_DRAWER);
 }
 
 int  speed = 0;
@@ -107,49 +136,68 @@ void loop()
   //           1 when cupboard door is open   (switch released)
   // we also debounce the switch inputs, assuming a continual
   // reading in a single state will be enough to stabilize.
-#define DEBOUNCE 50
-  bool thisBathroom = (digitalRead(BATHROOM_SWITCH));
-  static CFwTimer bathroomTimer;
-  if (thisBathroom != lastBathroom) {
-    bathroomTimer.SetTimer(DEBOUNCE);
-  }
-  lastBathroom = thisBathroom;
-  if (bathroom != thisBathroom &&
-      bathroomTimer.IsTimeout()) {
-    bathroom = thisBathroom;
+
+  bathroom->Process();
+  laundry->Process();
+
+  // the limit switches below the drawer will roll on the bottom of the drawer.
+  // when the drawer is centered, both switches will be pressed (0's)
+  // as the drawer opens in a direction (i.e. ddBathroom), the bathroomDrawerLimitSwitch
+  // will be seen as going from a 0 to a 1 just a fraction of an inch before the end of travel
+  // likewise going into the ddLaundry direction (laundryDrawerLimitSwitch)
+  bathroomDrawerLimitSwitch->Process();
+  laundryDrawerLimitSwitch->Process();
+  centeredDrawerLimitSwitch->Process();
+
+
+  int thisGo = (desiredDrawer&0x3)    | // 0b11, 0b00, 0b01
+               (actualDrawer &0x3)<<2 | // 0b11, 0b00, 0b01
+               (bathroom->GetState()&0x1)<<4      | // 0 or 1
+               (laundry->GetState()&0x1)<<5       | // 0 or 1
+               (bathroomDrawerLimitSwitch->GetState()&0x1)<<6      | // 0 or 1
+               (laundryDrawerLimitSwitch->GetState()&0x1)<<7       | // 0 or 1
+               (centeredDrawerLimitSwitch->GetState()&0x1)<<8       | // 0 or 1
+               inputState<<9;
+  static int lastGo = 999;
+  if (thisGo != lastGo) {
+    Serial.print(desiredDrawer);
+    Serial.print(" ");
+    Serial.print(actualDrawer);
+    Serial.print(" ");
+    Serial.print(inputState);
+    Serial.print(" ");
+    Serial.print(bathroom->GetState());
+    Serial.print(",");
+    Serial.print(laundry->GetState());
+    Serial.print(",");
+    Serial.print(bathroomDrawerLimitSwitch->GetState());
+    Serial.print(",");
+    Serial.print(laundryDrawerLimitSwitch->GetState());
+    Serial.print(",");
+    Serial.print(centeredDrawerLimitSwitch->GetState());
+    Serial.print("  ");
+#if !defined(JUST_IN_OUT_SWITCHES)
+    Serial.println(); // put on same line
+#endif
+    lastGo = thisGo;
   }
 
-  bool thisLaundry =  (digitalRead(LAUNDRY_SWITCH));
-  static CFwTimer laundryTimer;
-  if (thisLaundry != lastLaundry) {
-    laundryTimer.SetTimer(DEBOUNCE);
-  }
-  lastLaundry = thisLaundry;
-  if (laundry != thisLaundry &&
-      laundryTimer.IsTimeout()) {
-    laundry = thisLaundry;
-  }
+  int32_t newEncoder = encoder.read();
 
-int thisGo = (desiredDrawer&0x3)    | // 0b11, 0b00, 0b01
-             (actualDrawer &0x3)<<2 | // 0b11, 0b00, 0b01
-             (bathroom&0x1)<<4      | // 0 or 1
-             (laundry&0x1)<<5       | // 0 or 1
-             inputState<<6;
-static int lastGo = 999;
-if (thisGo != lastGo) {
-  Serial.print(desiredDrawer);
-  Serial.print(" ");
-  Serial.print(actualDrawer);
-  Serial.print(" ");
-  Serial.print(inputState);
-  Serial.print(" ");
-  Serial.print(bathroom);
-  Serial.print(",");
-  Serial.print(laundry);
-  Serial.print("  ");
-  Serial.print("\r"); // put on same line
-  lastGo = thisGo;
-}
+#if defined(JUST_IN_OUT_SWITCHES)
+  if (!bathroom->GetState())
+    speed = -255;
+  else if (!laundry->GetState())
+    speed = 255;
+  else
+    speed = 0;
+  static int lastSpeed = -999;
+  if (speed != lastSpeed) {
+    Serial.println(speed);
+    lastSpeed = speed;
+  }
+#else
+
 // desiredDrawer: ddBathroom=-1, ddCentered, ddLaundry
 // inputState: waitingForClosed, delayOpening, isClosed, isOpening, waitingForRelease
 
@@ -160,19 +208,20 @@ if (thisGo != lastGo) {
       switch (inputState) {
           break;
         case waitingForClosed:
-          if (!bathroom && !laundry)
+          // want to see both doors closed and the drawer physically centered
+          if (!bathroom->GetState() && !laundry->GetState() && !centeredDrawerLimitSwitch->GetState())
             inputState = isClosed;
           break;
         case isClosed:
-          if (bathroom) {
+          if (bathroom->GetState()) {
             watchingDrawer = ddBathroom;
             inputState = delayOpening;
-            MaxTravelTimer.SetTimer(BATHROOM_OPEN_DELAY);
+            WaitBeforeMoveTimer.SetTimer(BATHROOM_OPEN_DELAY);
           }
-          else if (laundry) {
+          else if (laundry->GetState()) {
             watchingDrawer = ddLaundry;
             inputState = delayOpening;
-            MaxTravelTimer.SetTimer(LAUNDRY_OPEN_DELAY);
+            WaitBeforeMoveTimer.SetTimer(LAUNDRY_OPEN_DELAY);
           }
           break;
         case delayOpening:
@@ -181,21 +230,21 @@ if (thisGo != lastGo) {
               // switch was released, give some time for the door to get far enough
               // out of the way to start moving the drawer.  If the input state reverts,
               // we should abort and go back to asking/being Closed
-              if (!bathroom) {
+              if (!bathroom->GetState()) {
                 inputState = waitingForClosed;
                 break;
               }
-              if (MaxTravelTimer.IsTimeout()) {
+              if (WaitBeforeMoveTimer.IsTimeout()) {
                 inputState = isOpening;
                 desiredDrawer = ddBathroom;
               }
               break;
             case ddLaundry:
-              if (!laundry) {
+              if (!laundry->GetState()) {
                 inputState = waitingForClosed;
                 break;
               }
-              if (MaxTravelTimer.IsTimeout()) {
+              if (WaitBeforeMoveTimer.IsTimeout()) {
                 inputState = isOpening;
                 desiredDrawer = ddLaundry;
               }
@@ -217,13 +266,13 @@ if (thisGo != lastGo) {
           // so now we wait until someone pushes just the switch (can't have the
           // cupboard door do that because the drawer is in the way!).  When
           // they let go, that's our clue to retract the door.
-          if (!bathroom) {
+          if (!bathroom->GetState()) {
             inputState = waitingForRelease;
             // user is pushing the button, now let's wait until they let go
           }
           break;
         case waitingForRelease:
-          if (bathroom) {
+          if (bathroom->GetState()) {
             // user has let go, so let's get out of the way
             desiredDrawer = ddCentered;
           }
@@ -239,13 +288,13 @@ if (thisGo != lastGo) {
           // so now we wait until someone pushes just the switch (can't have the
           // cupboard door do that because the drawer is in the way!).  When
           // they let go, that's our clue to retract the door.
-          if (!laundry) {
+          if (!laundry->GetState()) {
             inputState = waitingForRelease;
             // user is pushing the button, now let's wait until they let go
           }
           break;
         case waitingForRelease:
-          if (laundry) {
+          if (laundry->GetState()) {
             // user has let go, so let's get out of the way
             desiredDrawer = ddCentered;
           }
@@ -254,32 +303,42 @@ if (thisGo != lastGo) {
   }
 
 
-  int32_t newEncoder = encoder.read();
+  // we learned that a constant update of a digital output (our status LED for one)
+  // seems to cause a miscount of the encoder.read().  Might be attributed to accessing
+  // the port for an output bit doesn't correctly handle adjacent bits that are inputs.
+
   // now that we know what the switches want us to do, let's actually get
   // that drawer moved to make actualDrawer match desiredDrawer
 static desiredDrawerEnum desiredDrawerLatch;
   if (desiredDrawer != actualDrawer) {
     // we have to move to fix this scenario
-    // We need 19.5" of travel in either positive or negative direction,
-    // depending upon switch activation.  With our 22 tooth pulley (exactly 4.4" diameter),
-    // we need 19.5/4.4 = 4.43 revolutions on our 8192 cpr encoder, yielding a movement of 36305 counts
-#define IDLER_PULLEY_TOOTH_COUNT 22.0
-// Our belt has 5 teeth for every inch, so 0.2"/tooth
-#define IDLER_PULLEY_CIRCUMFERENCE (0.2*IDLER_PULLEY_TOOTH_COUNT) // 4.4 inches 
-#define CPI (8192.0/IDLER_PULLEY_CIRCUMFERENCE) // 1861.8 counts in an inch of movement
-#define DESIRED_MOVEMENT (19.5*CPI) // 36305
-#define COUNTS_TO_INCHES(counts) (counts/CPI)
     if (desiredDrawer != desiredDrawerLatch) { // 1 scan edge of change
-      MaxTravelTimer.SetTimer(5000);
+      MaxTravelTimer.SetTimer(4000);
     }
     desiredDrawerLatch = desiredDrawer;
 
     // we'll get the direction from where we are to where we want to be.
     // speed ends up being -1, +1, 0 (maybe +2 or -2, but state machine should prevent)
-    speed = 255*(desiredDrawer-actualDrawer);
+    speed = (desiredDrawer-actualDrawer);
 
-    if (MaxTravelTimer.IsTimeout()) {
-      Serial.println("\n\nTimeout"); 
+    if (desiredDrawer == ddBathroom &&
+        bathroomDrawerLimitSwitch->GetState()) {
+      // we were starting from center, so we are watching to see the switch hit end of travel
+      Serial.println("\n\rBathroom limit, complete");
+      actualDrawer = desiredDrawer;
+      speed = 0;
+    }
+    else if (desiredDrawer == ddLaundry &&
+             laundryDrawerLimitSwitch->GetState()) {
+      // we were starting from center, so we are watching to see the switch hit end of travel
+      Serial.println("\n\rLaundry limit, complete");
+      actualDrawer = desiredDrawer;
+      speed = 0;
+    }
+    else if (desiredDrawer == ddCentered &&
+             !centeredDrawerLimitSwitch->GetState()) {
+      // moving towards center, limit switch is enough
+      Serial.println("\n\rCenter limit, complete");
       actualDrawer = desiredDrawer;
       speed = 0;
     }
@@ -288,38 +347,44 @@ static desiredDrawerEnum desiredDrawerLatch;
         Serial.println("\n\rOutward travel complete"); 
         actualDrawer = desiredDrawer;
         speed = 0;
+        encoderWorking = true;
       }
     }
     // when returning to center, accept a band in the middle or crossing zero as complete
-    if (desiredDrawer == ddCentered && (abs(newEncoder) < 1000 || (newEncoder<0) != (actualDrawer<0))) {
+    if (encoderWorking && desiredDrawer == ddCentered && (abs(newEncoder) < 1000 || (newEncoder<0) != (actualDrawer<0))) {
       Serial.println("\n\rCentered"); 
       actualDrawer = desiredDrawer;
       speed = 0;
     }
     if (speed) {
-//      // still want to move, calculate velocity based upon range
-//      // compute remaining distance and set velocity based on range to target
-//      // range will be positive when matching desired direction of travel, negative on overshoot
-//      int32_t range = newEncoder - desiredDrawer * DESIRED_MOVEMENT;
-//#define MAX_SPEED 255 // largest PWM rate out of analogWrite()
-//#define RAMP_LENGTH (2*CPI) // 2" of counts = 3724
-//#define RAMP_MIN (100)
-//      // if range is over RAMP_LENGTH, use max speed
-//      int velocity;
-//      if (abs(range)>RAMP_LENGTH) {
-//        velocity = MAX_SPEED*range/abs(range);
-//        digitalWrite(LED_PIN, LOW);
-//      }
-//      else {
+      // still want to move, calculate velocity based upon range
+      // compute remaining distance and set velocity based on range to target
+      // range will be positive when matching desired direction of travel, negative on overshoot
+      int32_t range = newEncoder - desiredDrawer * DESIRED_MOVEMENT;
+#define MAX_SPEED 255 // largest PWM rate out of analogWrite()
+#define RAMP_LENGTH (5*CPI) // 2" of counts = 3724
+#define RAMP_MIN (100)
+      // if range is over RAMP_LENGTH, use max speed
+      int velocity = MAX_SPEED;
+//      if (abs(range)<RAMP_LENGTH) {
 //        // below RAMP_LENGTH, taper down to RAMP_MIN
-//        velocity = range/RAMP_LENGTH * (MAX_SPEED - RAMP_MIN) + RAMP_MIN;
-//        digitalWrite(LED_PIN, HIGH);
+//        // formula that works in Excel:
+//        // =-(D5/RAMP_LENGTH*(MAX_SPEED-RAMP_MIN)-RAMP_MIN*B5)
+//        BUT also need to gate on encoderWorking
+//        velocity = -(range/RAMP_LENGTH * (MAX_SPEED - RAMP_MIN) - RAMP_MIN*speed);
 //      }
-//      speed *= velocity; // if we overshoot, there could be a sign change as velocity will be negative
+      speed *= velocity; // if we overshoot, there could be a sign change as velocity will be negative
     }
   } // desiredDrawer != actualDrawer
   else
     speed = 0;
+  if (speed && MaxTravelTimer.IsTimeout()) {
+    Serial.println("\n\nTimeout");
+    actualDrawer = desiredDrawer; // prevents state machine from starting again
+    speed = 0;
+  }
+#endif // !JUST_IN_OUT_SWITCHES
+
   setMotor(abs(speed), speed<0);
 
 
