@@ -50,7 +50,9 @@ desiredDrawerEnum actualDrawer = ddCentered;
 desiredDrawerEnum watchingDrawer;
 CFwTimer MaxTravelTimer;
 CFwTimer WaitBeforeMoveTimer;
-enum { waitingForClosed, delayOpening, isClosed, isOpening, waitingForRelease } inputState = waitingForClosed;
+CFwTimer IgnoreSwitches;
+bool laundryEverReleased;
+enum { waitingForClosed, delayOpening, isClosed, isOpening, waitingForPress, waitingForRelease } inputState = waitingForClosed;
 
 
 // We need 19.5" of travel in either positive or negative direction,
@@ -100,6 +102,7 @@ void setup()
   bathroomDrawerLimitSwitch = new CFwDebouncedDigitalInput(FULLY_OPEN_BATHROOM);
   laundryDrawerLimitSwitch  = new CFwDebouncedDigitalInput(FULLY_OPEN_LAUNDRY);
   centeredDrawerLimitSwitch = new CFwDebouncedDigitalInput(CENTERED_DRAWER);
+  IgnoreSwitches.SetTimer(0); // watch right away
 }
 
 int  speed = 0;
@@ -199,118 +202,138 @@ void loop()
 #else
 
 // desiredDrawer: ddBathroom=-1, ddCentered, ddLaundry
-// inputState: waitingForClosed, delayOpening, isClosed, isOpening, waitingForRelease
+// inputState: waitingForClosed, delayOpening, isClosed, isOpening, waitingForPress, waitingForRelease
 
-  switch (desiredDrawer) {
-    case ddCentered:
-      // drawer is centered.  Make sure inputs return to both cupboards closed
-      // before deciding which way to open.
-      switch (inputState) {
+  if (desiredDrawer == actualDrawer) {
+    // only watch for changes if stable
+    if (IgnoreSwitches.IsTimeout()) {
+      switch (desiredDrawer) {
+        case ddCentered:
+          // drawer is centered.  Make sure inputs return to both cupboards closed
+          // before deciding which way to open.
+          switch (inputState) {
+             case waitingForClosed:
+              // want to see both doors closed and the drawer physically centered
+              if (!bathroom->GetState() && !laundry->GetState() && !centeredDrawerLimitSwitch->GetState())
+                inputState = isClosed;
+              break;
+            case isClosed:
+              if (bathroom->GetState()) {
+                watchingDrawer = ddBathroom;
+                inputState = delayOpening;
+                WaitBeforeMoveTimer.SetTimer(BATHROOM_OPEN_DELAY);
+              }
+              else if (laundry->GetState()) {
+                watchingDrawer = ddLaundry;
+                inputState = delayOpening;
+                WaitBeforeMoveTimer.SetTimer(LAUNDRY_OPEN_DELAY);
+              }
+              break;
+            case delayOpening:
+              switch (watchingDrawer) {
+                case ddBathroom:
+                  // switch was released, give some time for the door to get far enough
+                  // out of the way to start moving the drawer.  If the input state reverts,
+                  // we should abort and go back to asking/being Closed
+                  if (!bathroom->GetState()) {
+                    inputState = waitingForClosed;
+                    break;
+                  }
+                  if (WaitBeforeMoveTimer.IsTimeout()) {
+                    inputState = isOpening;
+                    desiredDrawer = ddBathroom;
+                  }
+                  break;
+                case ddLaundry:
+                  if (!laundry->GetState()) {
+                    inputState = waitingForClosed;
+                    break;
+                  }
+                  if (WaitBeforeMoveTimer.IsTimeout()) {
+                    inputState = isOpening;
+                    desiredDrawer = ddLaundry;
+                    laundryEverReleased = false;
+                  }
+                  break;
+              } // watchingSide
+              break;
+    
+            default:
+              inputState = waitingForClosed;
+          } // inputState while Centered
           break;
-        case waitingForClosed:
-          // want to see both doors closed and the drawer physically centered
-          if (!bathroom->GetState() && !laundry->GetState() && !centeredDrawerLimitSwitch->GetState())
-            inputState = isClosed;
-          break;
-        case isClosed:
-          if (bathroom->GetState()) {
-            watchingDrawer = ddBathroom;
-            inputState = delayOpening;
-            WaitBeforeMoveTimer.SetTimer(BATHROOM_OPEN_DELAY);
-          }
-          else if (laundry->GetState()) {
-            watchingDrawer = ddLaundry;
-            inputState = delayOpening;
-            WaitBeforeMoveTimer.SetTimer(LAUNDRY_OPEN_DELAY);
-          }
-          break;
-        case delayOpening:
-          switch (watchingDrawer) {
-            case ddBathroom:
-              // switch was released, give some time for the door to get far enough
-              // out of the way to start moving the drawer.  If the input state reverts,
-              // we should abort and go back to asking/being Closed
+    
+        case ddBathroom:
+          // drawer is extending/moving into the bathroom, or already fully extended into the bathroom
+          switch (inputState) {
+            // from ddCentered, inputState starts as delayOpening and the MaxTravelTimer is running
+            case isOpening:
+              // switch might have been pressed to stop the drawer, make sure released
+              if (bathroom->GetState()) {
+                inputState = waitingForPress;
+                // user is pushing the button, now let's wait until they let go
+              }
+              break;
+            case waitingForPress:
+              // made sure switch was released (1) in order to get into this state
+              // so now we wait until someone pushes just the switch (can't have the
+              // cupboard door do that because the drawer is in the way!).  When
+              // they let go, that's our clue to retract the door.
               if (!bathroom->GetState()) {
-                inputState = waitingForClosed;
-                break;
-              }
-              if (WaitBeforeMoveTimer.IsTimeout()) {
-                inputState = isOpening;
-                desiredDrawer = ddBathroom;
+                inputState = waitingForRelease;
+                // user is pushing the button, now let's wait until they let go
               }
               break;
-            case ddLaundry:
+            case waitingForRelease:
+              if (bathroom->GetState()) {
+                // user has let go, so let's get out of the way
+                desiredDrawer = ddCentered;
+              }
+          } // inputState of ddBathroom
+          break;
+    
+        case ddLaundry:
+          // drawer is extending/moving into the laundry, or already fully extended into the laundry
+          switch (inputState) {
+            // from ddCentered, inputState starts as isOpening
+            case isOpening:
+              // switch might have been pressed to stop the drawer, make sure released
+              if (laundry->GetState()) {
+                inputState = waitingForPress;
+                // user is pushing the button, now let's wait until they let go
+              }
+              break;
+            case waitingForPress:
+              // make sure switch was released (1) in order to get into this state
+              // so now we wait until someone pushes just the switch (can't have the
+              // cupboard door do that because the drawer is in the way!).  When
+              // they let go, that's our clue to retract the door.
               if (!laundry->GetState()) {
-                inputState = waitingForClosed;
-                break;
-              }
-              if (WaitBeforeMoveTimer.IsTimeout()) {
-                inputState = isOpening;
-                desiredDrawer = ddLaundry;
+                inputState = waitingForRelease;
+                // user is pushing the button, now let's wait until they let go
               }
               break;
-          } // watchingSide
+            case waitingForRelease:
+              if (laundry->GetState()) {
+                // user has let go, so let's get out of the way
+                desiredDrawer = ddCentered;
+              }
+          } // inputState of ddLaundry
           break;
-
-        default:
-          inputState = waitingForClosed;
-      } // inputState while Centered
-      break;
-
-    case ddBathroom:
-      // drawer is extending/moving into the bathroom, or already fully extended into the bathroom
-      switch (inputState) {
-        // from ddCentered, inputState starts as delayOpening and the MaxTravelTimer is running
-        case isOpening:
-          // switch was released (1) in order to get into this state
-          // so now we wait until someone pushes just the switch (can't have the
-          // cupboard door do that because the drawer is in the way!).  When
-          // they let go, that's our clue to retract the door.
-          if (!bathroom->GetState()) {
-            inputState = waitingForRelease;
-            // user is pushing the button, now let's wait until they let go
-          }
-          break;
-        case waitingForRelease:
-          if (bathroom->GetState()) {
-            // user has let go, so let's get out of the way
-            desiredDrawer = ddCentered;
-          }
-      } // inputState of ddBathroom
-      break;
-
-    case ddLaundry:
-      // drawer is extending/moving into the laundry, or already fully extended into the laundry
-      switch (inputState) {
-        // from ddCentered, inputState starts as isOpening
-        case isOpening:
-          // switch was released (1) in order to get into this state
-          // so now we wait until someone pushes just the switch (can't have the
-          // cupboard door do that because the drawer is in the way!).  When
-          // they let go, that's our clue to retract the door.
-          if (!laundry->GetState()) {
-            inputState = waitingForRelease;
-            // user is pushing the button, now let's wait until they let go
-          }
-          break;
-        case waitingForRelease:
-          if (laundry->GetState()) {
-            // user has let go, so let's get out of the way
-            desiredDrawer = ddCentered;
-          }
-      } // inputState of ddLaundry
-      break;
+      }
+      IgnoreSwitches.SetTimer(0); // continually reset timer for cleanest operation
+    }
+    speed = 0;
   }
+  else { // desiredDrawer != actualDrawer
+    
+    // we learned that a constant update of a digital output (our status LED for one)
+    // seems to cause a miscount of the encoder.read().  Might be attributed to accessing
+    // the port for an output bit doesn't correctly handle adjacent bits that are inputs.
 
-
-  // we learned that a constant update of a digital output (our status LED for one)
-  // seems to cause a miscount of the encoder.read().  Might be attributed to accessing
-  // the port for an output bit doesn't correctly handle adjacent bits that are inputs.
-
-  // now that we know what the switches want us to do, let's actually get
-  // that drawer moved to make actualDrawer match desiredDrawer
-static desiredDrawerEnum desiredDrawerLatch;
-  if (desiredDrawer != actualDrawer) {
+    // now that we know what the switches want us to do, let's actually get
+    // that drawer moved to make actualDrawer match desiredDrawer
+    static desiredDrawerEnum desiredDrawerLatch;
     // we have to move to fix this scenario
     if (desiredDrawer != desiredDrawerLatch) { // 1 scan edge of change
       MaxTravelTimer.SetTimer(4000);
@@ -322,19 +345,33 @@ static desiredDrawerEnum desiredDrawerLatch;
     speed = (desiredDrawer-actualDrawer);
 
     if (desiredDrawer == ddBathroom &&
-        bathroomDrawerLimitSwitch->GetState()) {
+        (bathroomDrawerLimitSwitch->GetState() ||
+         !bathroom->GetState())) {
       // we were starting from center, so we are watching to see the switch hit end of travel
+      // or if the user presses the switch again, a signal to stop coming towards us!
       Serial.println("\n\rBathroom limit, complete");
       actualDrawer = desiredDrawer;
       speed = 0;
     }
-    else if (desiredDrawer == ddLaundry &&
-             laundryDrawerLimitSwitch->GetState()) {
-      // we were starting from center, so we are watching to see the switch hit end of travel
-      Serial.println("\n\rLaundry limit, complete");
-      actualDrawer = desiredDrawer;
-      speed = 0;
-    }
+    else if (desiredDrawer == ddLaundry) {
+      if (laundryDrawerLimitSwitch->GetState()) {
+        // we were starting from center, so we are watching to see the switch hit end of travel
+        Serial.println("\n\rLaundry limit, complete");
+        actualDrawer = desiredDrawer;
+        speed = 0;
+      }
+      else if (!laundryEverReleased) {
+        if (!laundry->GetState())
+          laundryEverReleased = true;
+      }
+      else if (laundryEverReleased &&
+                laundry->GetState()) {
+        // or if the user presses the switch again, a signal to stop coming towards us!
+        Serial.println("\n\rUser limit, complete");
+        actualDrawer = desiredDrawer;
+        speed = 0;
+      }
+    } // ddLaundry
     else if (desiredDrawer == ddCentered &&
              !centeredDrawerLimitSwitch->GetState()) {
       // moving towards center, limit switch is enough
@@ -375,9 +412,12 @@ static desiredDrawerEnum desiredDrawerLatch;
 //      }
       speed *= velocity; // if we overshoot, there could be a sign change as velocity will be negative
     }
+    if (desiredDrawer == actualDrawer) {
+      // just became correct state
+      IgnoreSwitches.SetTimer(1250);
+    }
   } // desiredDrawer != actualDrawer
-  else
-    speed = 0;
+
   if (speed && MaxTravelTimer.IsTimeout()) {
     Serial.println("\n\nTimeout");
     actualDrawer = desiredDrawer; // prevents state machine from starting again
