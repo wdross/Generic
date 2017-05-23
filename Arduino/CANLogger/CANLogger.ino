@@ -47,12 +47,28 @@ struct CanRXType {
   INT32U Time;
 } volatile CanRXBuff[NUM_BUFFS];
 
+bool cycle = false;
+CFwTimer SYNCTimer;
 
 void RXSouthDoor() {
   // called when we get a SouthDoor message
   Serial.println("South door !!!");
 }
 
+void AddToDisplayBuffer(INT32U id, INT8U len, INT8U *buf)
+{
+  int Next = (Head + 1) % NUM_BUFFS;
+  if (Next != Tail) {
+    CanRXBuff[Next].COBID = id; // MSBit set if isExtendedFrame()
+    CanRXBuff[Next].Length = len;
+    CanRXBuff[Next].Time = millis();
+    for (int i=0; i<len; i++)
+      CanRXBuff[Next].Message[i] = buf[i];
+    Head = Next;
+  }
+  else
+    Serial.println("Overflow");
+}
 
 void CanPoller()
 {
@@ -63,15 +79,7 @@ void CanPoller()
     CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
     INT32U COBID = CAN.getCanId() | (CAN.isExtendedFrame()?IS_EXTENDED_COBID:0); // valid after readMsgBuf()
 
-    int Next = (Head + 1) % NUM_BUFFS;
-    if (Next != Tail) {
-      CanRXBuff[Next].COBID = COBID; // MSBit set if isExtendedFrame()
-      CanRXBuff[Next].Length = len;
-      CanRXBuff[Next].Time = millis();
-      for (int i=0; i<len; i++)
-        CanRXBuff[Next].Message[i] = Msg[i];
-      Head = Next;
-    }
+    AddToDisplayBuffer(COBID,len,Msg);
 
     for (int j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
       if (COBID == CanInBuffers[j].Can.COBID) { // also checks that we wanted ExtendedFrame() or not
@@ -115,7 +123,7 @@ void setup()
   Serial.begin(115200);
   delay(100);
 
-  CurrentCANBaud = CAN_500KBPS;
+  CurrentCANBaud = CAN_250KBPS;
   while (CAN_OK != CAN.begin(CurrentCANBaud))              // init can bus
   {
     Serial.println("CAN BUS Shield init fail");
@@ -181,6 +189,8 @@ void startUpText()
 }
 
 
+// v: value to print
+// num_places: number of bits we want to display
 void print_hex(long int v, int num_places)
 {
   int mask=0, n, num_nibbles, digit;
@@ -191,7 +201,7 @@ void print_hex(long int v, int num_places)
   }
   v = v & mask; // truncate v to specified number of places
 
-  num_nibbles = num_places / 4;
+  num_nibbles = (num_places+3) / 4;
   if ((num_places % 4) != 0)
   {
     ++num_nibbles;
@@ -204,6 +214,57 @@ void print_hex(long int v, int num_places)
   } while(--num_nibbles);
 }
 
+byte sdo[] = {0x40,0x01,0x18,0x02,0x00,0x00,0x00,0x00};
+void SDOread(int NID, int index, byte subIndex)
+{
+  // build and send message to read a remote object
+  INT8U len = sizeof(sdo);
+  INT32U COBID = MK_COBID(NID,RXSDO);
+  sdo[0] = 0x40; // READ
+  sdo[1] = 0xff & index;        // LSBits
+  sdo[2] = 0xff & (index >> 8); // MSBits
+  sdo[3] = subIndex;
+  sdo[4] = sdo[5] = sdo[6] = sdo[7] = 0;
+  CAN.sendMsgBuf(COBID,0,len,sdo);
+  AddToDisplayBuffer(COBID,len,sdo);
+}
+void SDOwrite(int NID, int index, byte subIndex, INT32U value, byte valuesize)
+{
+  // build and send message to change a remote object
+  INT8U len = sizeof(sdo);
+  INT32U COBID = MK_COBID(NID,RXSDO);
+  switch (valuesize) {
+    case 1: sdo[0] = 0x2f; break;
+    case 2: sdo[0] = 0x2b; break;
+    case 3: sdo[0] = 0x27; break;
+    default: sdo[0] = 0x23; break;
+  }
+  sdo[1] = 0xff & index;        // LSBits
+  sdo[2] = 0xff & (index >> 8); // MSBits
+  sdo[3] = subIndex;
+  sdo[4] = value;
+  sdo[5] = value >> 8;
+  sdo[6] = value >> 16;
+  sdo[7] = value >> 24;
+  CAN.sendMsgBuf(COBID,0,len,sdo);
+  AddToDisplayBuffer(COBID,len,sdo);
+}
+void SYNCsend()
+{
+  INT8U len = 0;
+  INT32U COBID = 0x80;
+  char ret = CAN.sendMsgBuf(COBID,0,len,0);
+  AddToDisplayBuffer(COBID,len,0);
+}
+void NMTsend()
+{
+  sdo[0] = 0x01;
+  sdo[1] = 0x00;
+  INT8U len = 2;
+  INT32U COBID = 0x00;
+  CAN.sendMsgBuf(COBID,0,len,sdo);
+  AddToDisplayBuffer(COBID,len,sdo);
+}
 
 void loop()
 {
@@ -218,6 +279,30 @@ void loop()
   {
     Serial.end();
   }
+  else if (serialRead == 'S') // SYNC transmit
+  {
+    SYNCsend();
+  }
+  else if (serialRead == 'n' || serialRead == 'N') // NMT 'start all nodes'
+  {
+    NMTsend();
+  }
+  else if (serialRead == 'd' || serialRead == 'D') // sDo
+  {
+    SDOread(ESD_SOUTH_DOOR_ANALOG,0x1801,2);
+  }
+  else if (serialRead == 'w' || serialRead == 'W') // Write sdo
+  {
+    SDOwrite(ESD_SOUTH_DOOR_ANALOG,0x1801,2,1,1);
+  }
+  else if (serialRead == 'c' || serialRead == 'C') // Cycle
+  {
+    cycle = !cycle;
+    if (cycle) {
+      SYNCTimer.SetTimer(100);
+    }
+  }
+
   else if(serialRead == 'B') // Baud rate request
   {
     int b = 0;
@@ -252,8 +337,14 @@ void loop()
     }
   }
 
+  if (cycle && SYNCTimer.IsTimeout()) {
+    SYNCsend();
+    SYNCTimer.IncrementTimer(100);
+  }
+
   if (Head != Tail) {
     // not caught up, print out the next message we have
+    Tail = (Tail + 1) % NUM_BUFFS;
 
     Serial.print(" 0    ");
     print_hex(CanRXBuff[Tail].COBID, 32);
@@ -270,7 +361,6 @@ void loop()
     }
     Serial.print("     ");
     Serial.println((0.001)*CanRXBuff[Tail].Time, 3);
-    Tail = (Tail + 1) % NUM_BUFFS;
   }
 }
 

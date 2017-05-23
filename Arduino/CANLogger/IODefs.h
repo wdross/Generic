@@ -4,21 +4,21 @@
 
 // NodeIDs of CAN devices in the different boxes:
 // (New) South Door control box:
-#define ESD_SOUTH_DOOR_DIO_OUTPUTS 7
-#define ESD_SOUTH_DOOR_DIO_INPUTS 8
-#define ESD_SOUTH_DOOR_ANALOG 20
-#define IMTRA_PPC800_SOUTH 120|IS_EXTENDED_COBID
+#define ESD_SOUTH_DOOR_DIO_OUTPUTS 0x11
+#define ESD_SOUTH_DOOR_DIO_INPUTS 0x12
+#define ESD_SOUTH_DOOR_ANALOG 0x13
+#define IMTRA_PPC800_SOUTH 0x120|IS_EXTENDED_COBID
 // Existing South Hydraulic control box:
-#define ESD_SOUTH_HYDRAULIC 10
+#define ESD_SOUTH_HYDRAULIC 0x21
 // (New) North Door control box:
-#define ESD_NORTH_DOOR_DIO 11
-#define ESD_NORTH_DOOR_ANALOG 22
-#define IMTRA_PPC800_NORTH 140|IS_EXTENDED_COBID
+#define ESD_NORTH_DOOR_DIO 0x31
+#define ESD_NORTH_DOOR_ANALOG 0x32
+#define IMTRA_PPC800_NORTH 0x140|IS_EXTENDED_COBID
 // Existing North Hydraulic control box:
-#define ESD_NORTH_HYDRAULIC 33
+#define ESD_NORTH_HYDRAULIC 0x41
 
 // Enough CANOPEN stuff to define COBIDs
-#define MK_COBID(ID,FN) ((ID)&0x07f | (((FN)&7)<<7) | (IS_EXTENDED_COBID&ID))
+#define MK_COBID(ID,FN) ((ID)&0x07f | (((FN)&0xf)<<7) | (IS_EXTENDED_COBID&ID))
 #define EMERGENCY 1
 #define TXPDO1 3
 #define TXPDO2 5
