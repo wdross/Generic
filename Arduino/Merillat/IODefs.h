@@ -1,45 +1,30 @@
 #if !defined(IODEFS_INCLUDED)
 #define IODEFS_INCLUDED
 
-// This will define the I/O points for the Metillat boathouse door project
+#include "CanOpen.h"
 
-#define IS_EXTENDED_COBID 0x80000000L // we'll set bit 31 (of a 29-bit COBID) to mean 'Extended'
+// This will define the I/O points for the Merillat boathouse door project
 
 // NodeIDs of CAN devices in the different boxes:
 // (New) South Door control box:
-#define ESD_SOUTH_DOOR_DIO_OUTPUTS 7
-#define ESD_SOUTH_DOOR_DIO_INPUTS 8
-#define ESD_SOUTH_DOOR_ANALOG 20
-#define IMTRA_PPC800_SOUTH 0x08FF0000L|IS_EXTENDED_COBID|120
+#define ESD_SOUTH_DOOR_DIO_OUTPUTS 0x11
+#define ESD_SOUTH_DOOR_DIO_INPUTS 0x12
+#define ESD_SOUTH_DOOR_ANALOG 0x13
+#define IMTRA_PPC800_SOUTH 0x08FF0000L|IS_EXTENDED_COBID|0x120
 // Existing South Hydraulic control box:
-#define ESD_SOUTH_HYDRAULIC 10
+#define ESD_SOUTH_HYDRAULIC 0x21
 // (New) North Door control box:
-#define ESD_NORTH_DOOR_DIO 11
-#define ESD_NORTH_DOOR_ANALOG 22
-#define IMTRA_PPC800_NORTH 0x08FF0000L|IS_EXTENDED_COBID|140
+#define ESD_NORTH_DOOR_DIO 0x31
+#define ESD_NORTH_DOOR_ANALOG 0x32
+#define IMTRA_PPC800_NORTH 0x08FF0000L|IS_EXTENDED_COBID|0x140
 // Existing North Hydraulic control box:
-#define ESD_NORTH_HYDRAULIC 33
+#define ESD_NORTH_HYDRAULIC 0x41
 
 #define RX_PGN 0x11000100L // turning on these bits max the RX PGN
 
-// Enough CANOPEN stuff to define COBIDs
-#define MK_COBID(ID,FN) ((ID)&0x07f | (((FN)&7)<<7) | (IS_EXTENDED_COBID&(ID)))
-#define EMERGENCY 1
-#define TXPDO1 3
-#define TXPDO2 5
-#define TXPDO3 7
-#define TXPDO4 9
-#define RXPDO1 4
-#define RXPDO2 6
-#define RXPDO3 8
-#define RXPDO4 10
-#define TXSDO 11
-#define RXSDO 12
-#define NODE_GUARD 14
-
 // Make up the COBIDs we'll need to go with the Inputs below
 #define SOUTHDOORDIO_RX_COBID    MK_COBID(ESD_SOUTH_DOOR_DIO_INPUTS,TXPDO1)
-#define SOUTHDOORANALOG_RX_COBID MK_COBID(ESD_SOUTH_DOOR_ANALOG,TXPDO1)
+#define SOUTHDOORANALOG_RX_COBID MK_COBID(ESD_SOUTH_DOOR_ANALOG,TXPDO2)
 #define SOUTHTHRUSTER_RX_COBID   (IMTRA_PPC800_SOUTH|RX_PGN) // Extended!
 #define NORTHDOORDIO_RX_COBID    MK_COBID(ESD_NORTH_DOOR_DIO,TXPDO1)
 #define NORTHDOORANALOG_RX_COBID MK_COBID(ESD_NORTH_DOOR_ANALOG,TXPDO1)
@@ -220,13 +205,13 @@ struct OutputType {
 #define Winter_Lock_Closed_IsUnlatched     bitRead(Inputs.SouthDoorDIO_Rx,3)
 #define Upper_South_Door_IsOpen            bitRead(Inputs.SouthDoorDIO_Rx,4)
 #define Upper_South_Door_IsClosed          bitRead(Inputs.SouthDoorDIO_Rx,5)
-#define South_Winter_Door_Position         *(unsigned int*)&Inputs.SouthDoorAnalog_Rx // dereference as 16 bit value
+#define South_Winter_Door_Position         Inputs.SouthDoorAnalog_Rx[0]
 // North door control box
 #define North_Winter_Lock_Open_IsLatched   bitRead(Inputs.NorthDoorDIO_Rx,0)
 #define North_Winter_Lock_Open_IsUnlatched bitRead(Inputs.NorthDoorDIO_Rx,1)
 #define Upper_North_Door_IsOpen            bitRead(Inputs.NorthDoorDIO_Rx,2)
 #define Upper_North_Door_IsClosed          bitRead(Inputs.NorthDoorDIO_Rx,3)
-#define North_Winter_Door_Position         *(unsigned int*)&Inputs.NorthDoorAnalog_Rx // dereference as 16 bit value
+#define North_Winter_Door_Position         *(INT16U*)&Inputs.NorthDoorAnalog_Rx // dereference as 16 bit value
 // North hydraulic
 #define Remote_IsRequestingOpen            bitRead(Inputs.NorthHydraulic_Rx,0)
 #define Remote_IsRequestingClose           bitRead(Inputs.NorthHydraulic_Rx,1)

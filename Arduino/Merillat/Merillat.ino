@@ -76,14 +76,14 @@ void DoorControl()
 
   // Constantly monitor angle from hinges and maintain them in EEPROM to be
   // handled over power loss.
-  if (CanPollElapsedFromLastRx(SOUTHDOORANALOG_RX_COBID) < 250) {
+  if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) < 250) {
     // update is recent
     if (South_Winter_Door_Position < myEE.SouthDoor.Min)
       myEE.SouthDoor.Min = South_Winter_Door_Position;
     if (South_Winter_Door_Position > myEE.SouthDoor.Max)
       myEE.SouthDoor.Max = South_Winter_Door_Position;
   }
-  if (CanPollElapsedFromLastRx(NORTHDOORANALOG_RX_COBID) < 250) {
+  if (CanPollElapsedFromLastRxByCOBID(NORTHDOORANALOG_RX_COBID) < 250) {
     // update is recent
     if (North_Winter_Door_Position < myEE.NorthDoor.Min)
       myEE.NorthDoor.Min = North_Winter_Door_Position;
@@ -132,7 +132,7 @@ void setup()
   Serial.begin(115200);
   Serial.println("Merillat boathouse controller");
   CanPollerInit();
-  while (CAN_OK != CAN.begin(CAN_500KBPS))              // init can bus : baudrate = 500k
+  while (CAN_OK != CAN.begin(CAN_250KBPS))              // init can bus : baudrate = 500k
   {
       Serial.println("CAN BUS Shield init fail");
       Serial.println(" Init CAN BUS Shield again");
@@ -193,16 +193,17 @@ void setup()
 
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
-  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
+//  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
   CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
-  CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
-  CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
-  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
-  CanPollSetRx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx);
-  CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
+//  CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
+//  CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
+//  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
+//  CanPollSetRx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx);
+//  CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
 
   // Data we'll transmit (evenly spaced) every CAN_TX_INTERVAL ms
   //           COBID,                  NumberOfBytesToTransmit,          AddressOfDataToTransmit
+  CanPollSetTx(0x80,                   0,                                NULL);
   CanPollSetTx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx);
   CanPollSetTx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), (INT8U*)&Outputs.SouthThruster_Tx);
   CanPollSetTx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx);

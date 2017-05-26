@@ -4,6 +4,7 @@
   
 */
 #include "CanPoller.h"
+#include "CanOpen.h"
 long int Fault=0;
 long int OK=0;
 
@@ -59,53 +60,119 @@ void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
     Serial.println("Attempt to set up more TX buffers than allowed");
 }
 
-// Intended to be called from loop(), services both in and outbound messages
-void CanPoller() // returns true if any messages were transmitted this call
+long CanPollElapsedFromLastRxByIndex(byte i)
 {
+  if (CanInBuffers[i].LastRxTime.GetExpiredBy() < 0) { // wrapped
+    CanInBuffers[i].LastRxTime.SetTimer(INFINITE);
+    return INFINITE; // been a *very* long time, make sure it can never become valid
+  }
+  else
+    return CanInBuffers[i].LastRxTime.GetExpiredBy();
+} // CanPollElapsedFromLastRxByIndex
+
+long CanPollElapsedFromLastRxByCOBID(INT32U COBID)
+{
+  for (int j=0; j<NUM_IN_BUFFERS; j++) {
+    if (CanInBuffers[j].Can.COBID == COBID)
+      return(CanPollElapsedFromLastRxByIndex(j));
+  }
+  return INFINITE; // not found
+}
+
+#define NOT_TALKING_TIMEOUT 200 // ms without talking, we'll report !HaveCome
+CFwTimer GrossTimeoutChecker;
+bool HaveComm = false;
+// Intended to be called from loop(), services both in and outbound messages
+void CanPoller()
+{
+  int j;
   // let's receive all messages into their registered buffer
   while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
     INT8U len;
     INT8U Msg[8];
     CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
     INT32U COBID = CAN.getCanId(); // valid after readMsgBuf()
-    for (int j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
+    for (j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
       if (COBID == CanInBuffers[j].Can.COBID) {
         // found match, record time and save the bytes
         CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
         memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
+        break; // skip out of the loop
       }
     }
   }
 
-  // see if it is time to send any of our messages at their interval
-  int sent = 0;
-  for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
-    if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
-      char ret = CAN.sendMsgBuf((INT32U)(CanOutBuffers[j].Can.COBID&COB_ID_MASK),CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
-      CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
-      sent++;
-      if (ret == CAN_OK)
-        OK++;
-      else
-        Fault++;
+  if (GrossTimeoutChecker.IsTimeout()) {
+    bool AnyExpired = false;
+    for (j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
+      if (CanPollElapsedFromLastRxByIndex(j) > NOT_TALKING_TIMEOUT)
+        AnyExpired = true;
     }
+    if (AnyExpired && HaveComm) {
+      HaveComm = false;
+      Serial.println("Just lost a unit");
+    }
+    if (!AnyExpired && !HaveComm) {
+      HaveComm = true;
+      Serial.println("All talking now");
+    }
+    GrossTimeoutChecker.IncrementTimer(NOT_TALKING_TIMEOUT/2);
   }
-  return;
-}
 
-long CanPollElapsedFromLastRx(INT32U COBID)
-{
-  for (int j=0; j<NUM_IN_BUFFERS; j++) {
-    if (CanInBuffers[j].Can.COBID == COBID) {
-      if (CanInBuffers[j].LastRxTime.GetExpiredBy() < 0) { // wrapped
-        CanInBuffers[j].LastRxTime.SetTimer(INFINITE);
-        return INFINITE; // been a *very* long time
+#define NO_COMM_INTERVAL 50 // send some 'get us going' message at this interval
+  static CFwTimer NoCommTimer;
+  if (!HaveComm) {
+    // in this state, we've not gotten all our messages, so we need to keep
+    // trying to get them to respond to us.
+    // It appears each card needs to have it's Transmit PDO parameter's Transmission Type
+    // (0x180n.2) set to a 1 so it will respond to a SYNC.
+    // The cards also need a NMT (directed or global) to respond to SYNCs
+    static int CheckRX = 0;
+    if (NoCommTimer.IsTimeout()) {
+      // let's try to get something talking to us
+      while (CheckRX < NUM_IN_BUFFERS && CanInBuffers[CheckRX].Can.COBID) {
+        if (!(CanInBuffers[CheckRX].Can.COBID&IS_EXTENDED_COBID) &&
+            CanPollElapsedFromLastRxByIndex(CheckRX) > NOT_TALKING_TIMEOUT) {
+          // haven't heard from this guy, set his Comm parameter
+          SDOwrite(GET_NID(CanInBuffers[CheckRX].Can.COBID),0x1801,2,1,1);
+          CheckRX++;
+          NoCommTimer.SetTimer(NO_COMM_INTERVAL);
+          Serial.println("SDO write");
+          return;
+        }
+        CheckRX++;
       }
-      else
-        return CanInBuffers[j].LastRxTime.GetExpiredBy();
+      // we've looped once thru all the units and set their PDO Comm param to
+      // answer us on a SYNC.  First time after the individual messages, send a
+      // NMT to get all units Operational
+      if (CheckRX <= NUM_IN_BUFFERS) {
+        NMTsend();
+        CheckRX = NUM_IN_BUFFERS+1; // forces 'next state'
+        NoCommTimer.SetTimer(NO_COMM_INTERVAL);
+        Serial.println("NMT");
+        return;
+      }
+      SYNCsend();
+      Serial.println("SYNC");
+      NoCommTimer.SetTimer(NO_COMM_INTERVAL);
+      CheckRX = 0; // go ahead and wrap around, in case something still isn't answering
+      return;
     }
   }
-  return INFINITE; // not found
+  else {
+    // see if it is time to send any of our messages at their interval
+    for (j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
+      if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
+        char ret = CAN.sendMsgBuf((INT32U)(CanOutBuffers[j].Can.COBID&COB_ID_MASK),CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+        CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
+        if (ret == CAN_OK)
+          OK++;
+        else
+          Fault++;
+      }
+    }
+    NoCommTimer.SetTimer(0); // keep it expired
+  } // Comm appears to be OK
 }
 
 void CanPollDisplay(int io)
