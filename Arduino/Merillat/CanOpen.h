@@ -7,6 +7,7 @@
 // Enough CANOPEN stuff to define COBIDs
 #define MK_COBID(ID,FN) ((ID)&0x07f | (((FN)&0xf)<<7) | (IS_EXTENDED_COBID&(ID)))
 #define GET_NID(COBID) ((COBID)&0x7f)
+#define GET_FN(COBID) (((COBID)>>7)&0xf)
 #define EMERGENCY 1
 #define TXPDO1 3
 #define TXPDO2 5

@@ -16,6 +16,21 @@
 
 #define COB_ID_MASK 0x1FFFFFFFL // 29-bit mask
 
+#undef DO_LOGGING
+#ifdef DO_LOGGING
+#define NUM_BUFFS 10
+struct CanRXType {
+  INT32U COBID;
+  INT8U Length;
+  INT8U Message[8];
+  INT32U Time;
+};
+extern volatile CanRXType CanRXBuff[NUM_BUFFS];
+void print_hex(long int v, int num_places);
+void AddToDisplayBuffer(INT32U id, INT8U len, INT8U *buf);
+extern volatile int Head; // updated in ISR
+extern int Tail;
+#endif
 
 struct CanEntryType {
   INT32U COBID;

@@ -12,6 +12,52 @@ CanRxType CanInBuffers[NUM_IN_BUFFERS];
 CanTxType CanOutBuffers[NUM_OUT_BUFFERS];
 MCP_CAN CAN(SPI_CS_PIN);    // Set CS pin
 
+
+#ifdef DO_LOGGING
+volatile int Head = 0; // updated in ISR
+int Tail = 0;
+volatile CanRXType CanRXBuff[NUM_BUFFS];
+void AddToDisplayBuffer(INT32U id, INT8U len, INT8U *buf)
+{
+  int Next = (Head + 1) % NUM_BUFFS;
+  if (Next != Tail) {
+    CanRXBuff[Next].COBID = id; // MSBit set if isExtendedFrame()
+    CanRXBuff[Next].Length = len;
+    CanRXBuff[Next].Time = millis();
+    for (int i=0; i<len; i++)
+      CanRXBuff[Next].Message[i] = buf[i];
+    Head = Next;
+  }
+  else
+    Serial.println("Overflow");
+} // AddToDisplayBuffer
+
+// v: value to print
+// num_places: number of bits we want to display
+void print_hex(long int v, int num_places)
+{
+  int mask=0, n, num_nibbles, digit;
+
+  for (n=1; n<=num_places; n++)
+  {
+    mask = (mask << 1) | 0x0001;
+  }
+  v = v & mask; // truncate v to specified number of places
+
+  num_nibbles = (num_places+3) / 4;
+  if ((num_places % 4) != 0)
+  {
+    ++num_nibbles;
+  }
+
+  do
+  {
+    digit = ((v >> (num_nibbles-1) * 4)) & 0x0f;
+    Serial.print(digit, HEX);
+  } while(--num_nibbles);
+} // print_hex
+#endif // DO_LOGGING
+
 void CanPollerInit()
 {
   // set up our arrays
@@ -21,7 +67,7 @@ void CanPollerInit()
   for (int j=0; j<NUM_IN_BUFFERS; j++) {
     CanInBuffers[j].Can.COBID = 0; // not used
   }
-}
+} // CanPollerInit
 
 // Set up &buf to receive len bytes of data from COBID seen on CAN-BUS
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
@@ -36,7 +82,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
       break; // we're done
     }
   }
-}
+} // CanPollSetRx
 
 // set up len bytes at &buf to be sent as a PDO with given COBID
 void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
@@ -57,8 +103,8 @@ void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
     }
   }
   else
-    Serial.println("Attempt to set up more TX buffers than allowed");
-}
+    Serial.println("Attempt to set up more TX buffers than space allows");
+} // CanPollSetTx
 
 long CanPollElapsedFromLastRxByIndex(byte i)
 {
@@ -77,6 +123,17 @@ long CanPollElapsedFromLastRxByCOBID(INT32U COBID)
       return(CanPollElapsedFromLastRxByIndex(j));
   }
   return INFINITE; // not found
+} // CanPollElapsedFromLastRxByCOBID
+
+
+int MapFnToCommParam(INT32U COBID)
+{
+  int fn = GET_FN(COBID);
+  switch (fn) {
+    case TXPDO1:return 0x1800;
+    case TXPDO2:return 0x1801;
+  }
+  return 0;
 }
 
 #define NOT_TALKING_TIMEOUT 200 // ms without talking, we'll report !HaveCome
@@ -92,6 +149,9 @@ void CanPoller()
     INT8U Msg[8];
     CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
     INT32U COBID = CAN.getCanId(); // valid after readMsgBuf()
+#ifdef DO_LOGGING
+    AddToDisplayBuffer(COBID,len,Msg);
+#endif
     for (j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
       if (COBID == CanInBuffers[j].Can.COBID) {
         // found match, record time and save the bytes
@@ -130,14 +190,61 @@ void CanPoller()
     static int CheckRX = 0;
     if (NoCommTimer.IsTimeout()) {
       // let's try to get something talking to us
-      while (CheckRX < NUM_IN_BUFFERS && CanInBuffers[CheckRX].Can.COBID) {
-        if (!(CanInBuffers[CheckRX].Can.COBID&IS_EXTENDED_COBID) &&
+      while (CheckRX < NUM_IN_BUFFERS) {
+        int NID = GET_NID(CanOutBuffers[CheckRX-NUM_IN_BUFFERS].Can.COBID);
+        if (NID &&
+            !(CanInBuffers[CheckRX].Can.COBID&IS_EXTENDED_COBID) &&
             CanPollElapsedFromLastRxByIndex(CheckRX) > NOT_TALKING_TIMEOUT) {
           // haven't heard from this guy, set his Comm parameter
-          SDOwrite(GET_NID(CanInBuffers[CheckRX].Can.COBID),0x1801,2,1,1);
+          // The PDO1/PDO2 parameter means 0x1800/0x1801
+          int Index = MapFnToCommParam(CanInBuffers[CheckRX].Can.COBID);
+          int SubIndex = 2;
+          int Value = 1;
+          SDOwrite(NID,Index,SubIndex,Value,1);
           CheckRX++;
           NoCommTimer.SetTimer(NO_COMM_INTERVAL);
-          Serial.println("SDO write");
+#if !defined(DO_LOGGING)
+          Serial.print("SDO to NID 0x");
+          Serial.print(NID,HEX);
+          Serial.print(" Rx[");
+          Serial.print(CheckRX);
+          Serial.print("]: write 0x");
+          Serial.print(Index,HEX);
+          Serial.print(".");
+          Serial.print(SubIndex);
+          Serial.print(" = ");
+          Serial.println(Value);
+#endif
+          return;
+        }
+        CheckRX++;
+      }
+      // Don't forget to check the outputs too.  The DIO modules have to be placed
+      // into output mode, each output needs a "1" bit in 0x2250.1 that is to be an output
+      while (CheckRX < NUM_IN_BUFFERS+NUM_OUT_BUFFERS) {
+        int subscript = CheckRX-NUM_IN_BUFFERS;
+        int NID = GET_NID(CanOutBuffers[CheckRX-NUM_IN_BUFFERS].Can.COBID);
+        if (!(IS_EXTENDED_COBID & CanOutBuffers[CheckRX-NUM_IN_BUFFERS].Can.COBID) && // not any of the extended ones AND
+            NID) {                                                                    // not SYNC
+          // defined module that should be configured to define all bits as outpus
+          int Index = 0x2250;
+          int SubIndex = 1;
+          int Value = CanOutBuffers[CheckRX-NUM_IN_BUFFERS].OutputMask;
+          SDOwrite(NID,Index,SubIndex,Value,1);
+          CheckRX++;
+          NoCommTimer.SetTimer(NO_COMM_INTERVAL);
+#if !defined(DO_LOGGING)
+          Serial.print("SDO to NID 0x");
+          Serial.print(NID,HEX);
+          Serial.print(" Tx[");
+          Serial.print(subscript);
+          Serial.print("]: write 0x");
+          Serial.print(Index,HEX);
+          Serial.print(".");
+          Serial.print(SubIndex,HEX);
+          Serial.print(" = ");
+          Serial.println(Value);
+#endif
           return;
         }
         CheckRX++;
@@ -145,15 +252,19 @@ void CanPoller()
       // we've looped once thru all the units and set their PDO Comm param to
       // answer us on a SYNC.  First time after the individual messages, send a
       // NMT to get all units Operational
-      if (CheckRX <= NUM_IN_BUFFERS) {
+      if (CheckRX <= NUM_IN_BUFFERS+NUM_OUT_BUFFERS) {
         NMTsend();
-        CheckRX = NUM_IN_BUFFERS+1; // forces 'next state'
+        CheckRX = NUM_IN_BUFFERS+NUM_OUT_BUFFERS+1; // forces 'next state'
         NoCommTimer.SetTimer(NO_COMM_INTERVAL);
+#if !defined(DO_LOGGING)
         Serial.println("NMT");
+#endif
         return;
       }
       SYNCsend();
+#if !defined(DO_LOGGING)
       Serial.println("SYNC");
+#endif
       NoCommTimer.SetTimer(NO_COMM_INTERVAL);
       CheckRX = 0; // go ahead and wrap around, in case something still isn't answering
       return;
@@ -163,8 +274,15 @@ void CanPoller()
     // see if it is time to send any of our messages at their interval
     for (j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
       if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
-        char ret = CAN.sendMsgBuf((INT32U)(CanOutBuffers[j].Can.COBID&COB_ID_MASK),CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
-        CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
+        INT32U COBID = CanOutBuffers[j].Can.COBID&COB_ID_MASK;
+        char ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+#ifdef DO_LOGGING
+        AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+#endif
+        if (CanOutBuffers[j].NextSendTime.GetExpiredBy() > CAN_TX_INTERVAL*3/2)
+          CanOutBuffers[j].NextSendTime.SetTimer(CAN_TX_INTERVAL);
+        else
+          CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
         if (ret == CAN_OK)
           OK++;
         else
@@ -173,7 +291,7 @@ void CanPoller()
     }
     NoCommTimer.SetTimer(0); // keep it expired
   } // Comm appears to be OK
-}
+} // CanPoller
 
 void CanPollDisplay(int io)
 {
@@ -222,5 +340,5 @@ void CanPollDisplay(int io)
       }
     }
   }
-}
+} // CanPollDisplay
 

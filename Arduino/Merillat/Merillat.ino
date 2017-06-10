@@ -193,10 +193,10 @@ void setup()
 
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
-//  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
-  CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
+///  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
+   CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
 //  CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
-//  CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
+  CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
 //  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
 //  CanPollSetRx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx);
 //  CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
@@ -243,6 +243,29 @@ void loop()
 
   DoorControl();
 
+
+#ifdef DO_LOGGING
+  if (Head != Tail) {
+    // not caught up, print out the next message we have
+    Tail = (Tail + 1) % NUM_BUFFS;
+
+    Serial.print(" 0    ");
+    print_hex(CanRXBuff[Tail].COBID, 32);
+    Serial.print("         ");
+    Serial.print(CanRXBuff[Tail].Length);
+    Serial.print("  ");
+    for(int i = 0; i<8; i++)    // print the data
+    {
+      if(i >= CanRXBuff[Tail].Length)
+        Serial.print("  ");   // Print 8-bytes no matter what
+      else
+        print_hex(CanRXBuff[Tail].Message[i],8);
+      Serial.print("  ");
+    }
+    Serial.print("     ");
+    Serial.println((0.001)*CanRXBuff[Tail].Time, 3);
+  }
+#else
   if (millis() < delayUntil)
     return;
 
@@ -274,5 +297,6 @@ void loop()
   myGLCD.drawLine(lDoorX, lDoorY,LeftDoor.X,LeftDoor.Y);
   myGLCD.drawLine(rDoorX, rDoorY,RightDoor.X,RightDoor.Y);
   delayUntil += 130; // Increment timer relative, steady moving doors
+#endif
 }
 
