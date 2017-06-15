@@ -33,7 +33,7 @@ InputType  Inputs;
 
 struct LastCoords {
   int X,Y;
-} LeftDoor, RightDoor;
+} LeftDoor, RightDoor, NewLeftDoor, NewRightDoor;
 
 // defines to be used as parameters to setColor() calls:
 #define BLACK 0,0,0
@@ -273,29 +273,56 @@ void loop()
   if ((i>=STEPS_CHANGE && dir>0) ||
       (i<=0 && dir<0)) {
     dir*=-1;
-    delayUntil += 1500;
+Outputs.Upper_South_Door++; Serial.println(Outputs.Upper_South_Door);
+    if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) > NOT_TALKING_TIMEOUT)
+      delayUntil += 1500; // nothing to get angle from, pretend one
     return;
   }
 
   // Pre-calculate as much of the new angle as possible
   i+=3*dir;
-  float Angle = MIN_ANGLE + ((float)i*DEGREES_CHANGE/STEPS_CHANGE); // degrees
+  float Angle = MIN_ANGLE + ((float)i*DEGREES_CHANGE/STEPS_CHANGE); // degrees: 6..90 degrees
   Angle = Angle / 180.0 * M_PI; // radians
+  float SouthAngle = Angle;        //   6..90 in radians
+  float NorthAngle = M_PI - Angle; // 174..90 in radians
 
-  // erase previous door position (in black)
-  myGLCD.setColor(BLACK);
-  myGLCD.drawLine(lDoorX,lDoorY,LeftDoor.X,LeftDoor.Y);
-  myGLCD.drawLine(rDoorX,rDoorY,RightDoor.X,RightDoor.Y);
-  // draw new positions in Green
-  myGLCD.setColor(GREEN);
-  LeftDoor.Y = -sin(Angle)*doorLen; // rise
-  LeftDoor.X = cos(Angle)*doorLen; // run
-  LeftDoor.Y += lDoorY; // add in our offset, same for left and right
-  RightDoor.Y = LeftDoor.Y;
-  RightDoor.X = rDoorX - LeftDoor.X; // right's X is a mirror of left's
-  LeftDoor.X += lDoorX;
-  myGLCD.drawLine(lDoorX, lDoorY,LeftDoor.X,LeftDoor.Y);
-  myGLCD.drawLine(rDoorX, rDoorY,RightDoor.X,RightDoor.Y);
+  if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) <= NOT_TALKING_TIMEOUT) {
+    SouthAngle = (float)South_Winter_Door_Position / 32767.0 * 2 * M_PI; // convert 0..4096 into 0..2pi
+    if (SouthAngle > M_PI/2)
+      SouthAngle = M_PI/2; // saturate over max
+    else if (SouthAngle < MIN_ANGLE / 180.0 * M_PI)
+      SouthAngle = MIN_ANGLE / 180.0 * M_PI;
+    NorthAngle = M_PI - SouthAngle;
+  }
+
+  NewLeftDoor.Y = -sin(SouthAngle)*doorLen; // rise
+  NewLeftDoor.X = cos(SouthAngle)*doorLen; // run
+  NewLeftDoor.Y += lDoorY; // add in our offset, same for left and right
+  NewLeftDoor.X += lDoorX;
+  if (NewLeftDoor.X != LeftDoor.X ||
+      NewLeftDoor.Y != LeftDoor.Y) {
+    // erase previous door position (in black)
+    myGLCD.setColor(BLACK);
+    myGLCD.drawLine(lDoorX,lDoorY,LeftDoor.X,LeftDoor.Y);
+    // draw new positions in Green
+    myGLCD.setColor(GREEN);
+    myGLCD.drawLine(lDoorX, lDoorY,NewLeftDoor.X,NewLeftDoor.Y);
+    LeftDoor = NewLeftDoor;
+  }
+
+  NewRightDoor.Y = -sin(NorthAngle)*doorLen; // rise
+  NewRightDoor.Y += rDoorY; // add in offset
+  NewRightDoor.X = rDoorX + cos(NorthAngle)*doorLen; // run
+  if (NewRightDoor.X != RightDoor.X ||
+      NewRightDoor.Y != RightDoor.Y) {
+    // erase previous door position (in black)
+    myGLCD.setColor(BLACK);
+    myGLCD.drawLine(rDoorX,rDoorY,RightDoor.X,RightDoor.Y);
+    // draw new positions in Green
+    myGLCD.setColor(GREEN);
+    myGLCD.drawLine(rDoorX, rDoorY,NewRightDoor.X,NewRightDoor.Y);
+    RightDoor = NewRightDoor;
+  }
   delayUntil += 130; // Increment timer relative, steady moving doors
 #endif
 }
