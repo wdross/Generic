@@ -7,6 +7,7 @@
 #include "CanOpen.h"
 long int Fault=0;
 long int OK=0;
+long CanPollerNominalOutputInterval = INFINITE; // nothing to output until configured so
 
 CanRxType CanInBuffers[NUM_IN_BUFFERS];
 CanTxType CanOutBuffers[NUM_OUT_BUFFERS];
@@ -85,7 +86,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
 } // CanPollSetRx
 
 // set up len bytes at &buf to be sent as a PDO with given COBID
-void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
+void CanPollSetTx(INT32U COBID, char len, INT8U *buf, INT8U mask)
 {
   // set up the next available CanOutBuffers[] entry to be a sender
   int j=0;
@@ -94,9 +95,11 @@ void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
       CanOutBuffers[j].Can.Length = len;
       CanOutBuffers[j].Can.pMessage = buf;
       CanOutBuffers[j].Can.COBID = COBID;
+      CanOutBuffers[j].OutputMask = mask;
       break; // we're done, now set the Tx intervals
     }
   }
+  CanPollerNominalOutputInterval = CAN_TX_INTERVAL / (j+1); // ms
   if (j < NUM_OUT_BUFFERS) {
     for (int i=j; i>=0; i--) {
       CanOutBuffers[i].NextSendTime.SetTimer(CAN_TX_INTERVAL * (i+1) / (j+1));
@@ -108,12 +111,13 @@ void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
 
 long CanPollElapsedFromLastRxByIndex(byte i)
 {
-  if (CanInBuffers[i].LastRxTime.GetExpiredBy() < 0) { // wrapped
+  long expBy = CanInBuffers[i].LastRxTime.GetExpiredBy();
+  if (expBy < -(INFINITE/2)) { // wrapped
     CanInBuffers[i].LastRxTime.SetTimer(INFINITE);
     return INFINITE; // been a *very* long time, make sure it can never become valid
   }
   else
-    return CanInBuffers[i].LastRxTime.GetExpiredBy();
+    return expBy;
 } // CanPollElapsedFromLastRxByIndex
 
 long CanPollElapsedFromLastRxByCOBID(INT32U COBID)
@@ -136,12 +140,18 @@ int MapFnToCommParam(INT32U COBID)
   return 0;
 }
 
-#define NOT_TALKING_TIMEOUT 200 // ms without talking, we'll report !HaveCome
 CFwTimer GrossTimeoutChecker;
+CFwTimer NominalTimer;
 bool HaveComm = false;
-// Intended to be called from loop(), services both in and outbound messages
+// This is being call upon a hardware timer every 1ms thru use of the FlexiTimer2 class.
+// It services both in and outbound messages, so MUST BE EFFICIENT!!
 void CanPoller()
 {
+  static bool ReEntry = false;
+  if (ReEntry)
+    return;
+  ReEntry = true;
+
   int j;
   // let's receive all messages into their registered buffer
   while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
@@ -165,8 +175,14 @@ void CanPoller()
   if (GrossTimeoutChecker.IsTimeout()) {
     bool AnyExpired = false;
     for (j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
-      if (CanPollElapsedFromLastRxByIndex(j) > NOT_TALKING_TIMEOUT)
+      long Since = CanPollElapsedFromLastRxByIndex(j);
+      if (Since > NOT_TALKING_TIMEOUT) {
         AnyExpired = true;
+        Serial.print("Rx[");
+        Serial.print(j);
+        Serial.print("]=");
+        Serial.println(Since);
+      }
     }
     if (AnyExpired && HaveComm) {
       HaveComm = false;
@@ -191,7 +207,7 @@ void CanPoller()
     if (NoCommTimer.IsTimeout()) {
       // let's try to get something talking to us
       while (CheckRX < NUM_IN_BUFFERS) {
-        int NID = GET_NID(CanOutBuffers[CheckRX-NUM_IN_BUFFERS].Can.COBID);
+        int NID = GET_NID(CanInBuffers[CheckRX].Can.COBID);
         if (NID &&
             !(CanInBuffers[CheckRX].Can.COBID&IS_EXTENDED_COBID) &&
             CanPollElapsedFromLastRxByIndex(CheckRX) > NOT_TALKING_TIMEOUT) {
@@ -215,6 +231,7 @@ void CanPoller()
           Serial.print(" = ");
           Serial.println(Value);
 #endif
+          ReEntry = false;
           return;
         }
         CheckRX++;
@@ -245,6 +262,7 @@ void CanPoller()
           Serial.print(" = ");
           Serial.println(Value);
 #endif
+          ReEntry = false;
           return;
         }
         CheckRX++;
@@ -259,6 +277,7 @@ void CanPoller()
 #if !defined(DO_LOGGING)
         Serial.println("NMT");
 #endif
+        ReEntry = false;
         return;
       }
       SYNCsend();
@@ -267,30 +286,33 @@ void CanPoller()
 #endif
       NoCommTimer.SetTimer(NO_COMM_INTERVAL);
       CheckRX = 0; // go ahead and wrap around, in case something still isn't answering
+      ReEntry = false;
       return;
     }
   }
   else {
-    // see if it is time to send any of our messages at their interval
-    for (j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
-      if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
-        INT32U COBID = CanOutBuffers[j].Can.COBID&COB_ID_MASK;
-        char ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+    if (NominalTimer.IsTimeout()) {
+      // see if it is time to send any of our messages at their interval
+      for (j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
+        if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
+          INT32U COBID = CanOutBuffers[j].Can.COBID&COB_ID_MASK;
+          char ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
 #ifdef DO_LOGGING
-        AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+          AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
 #endif
-        if (CanOutBuffers[j].NextSendTime.GetExpiredBy() > CAN_TX_INTERVAL*3/2)
           CanOutBuffers[j].NextSendTime.SetTimer(CAN_TX_INTERVAL);
-        else
-          CanOutBuffers[j].NextSendTime.IncrementTimer(CAN_TX_INTERVAL);
-        if (ret == CAN_OK)
-          OK++;
-        else
-          Fault++;
+          NominalTimer.SetTimer(CanPollerNominalOutputInterval); // we can only put one out this often
+          NoCommTimer.SetTimer(0); // keep it expired
+          if (ret == CAN_OK)
+            OK++;
+          else
+            Fault++;
+          break; // skip out of for loop
+        }
       }
     }
-    NoCommTimer.SetTimer(0); // keep it expired
   } // Comm appears to be OK
+  ReEntry = false;
 } // CanPoller
 
 void CanPollDisplay(int io)
@@ -305,7 +327,7 @@ void CanPollDisplay(int io)
       if (CanOutBuffers[j].Can.COBID) {
         Serial.print("[");
         Serial.print(j);
-        Serial.print("]\t");
+        Serial.print("]\t0x");
         Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
@@ -314,13 +336,17 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID?1:0);
         Serial.print("\t");
-        Serial.println(CanOutBuffers[j].NextSendTime.getEndTime());
+        Serial.print(CanOutBuffers[j].NextSendTime.getEndTime());
+        if (CanOutBuffers[j].Can.Length) {
+          Serial.print("\t[");
+          Serial.print(CanOutBuffers[j].Can.pMessage[0],HEX);
+          Serial.print("]");
+        }
+        Serial.println();
       }
     }
-  }
-
-  if ((io & 1) && (io & 2))
     Serial.println();
+  }
 
   if (io & 2) {
     Serial.println("Input buffers defined:");
@@ -329,16 +355,27 @@ void CanPollDisplay(int io)
       if (CanInBuffers[j].Can.COBID) {
         Serial.print("[");
         Serial.print(j);
-        Serial.print("]\t");
-        Serial.print(CanInBuffers[j].Can.COBID,HEX);
+        Serial.print("]\t0x");
+        Serial.print(CanInBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanInBuffers[j].Can.Length);
         Serial.print("\t");
         Serial.print((long)CanInBuffers[j].Can.pMessage);
         Serial.print("\t");
-        Serial.println(CanInBuffers[j].LastRxTime.getEndTime());
+        Serial.print(CanInBuffers[j].LastRxTime.getEndTime());
+        if (CanInBuffers[j].Can.Length) {
+          Serial.print("\t[");
+          for (int k=0; k<CanInBuffers[j].Can.Length; k++) {
+            Serial.print(CanInBuffers[j].Can.pMessage[0],HEX);
+            if (k<CanInBuffers[j].Can.Length-1)
+              Serial.print(" ");
+          }
+          Serial.print("]");
+        }
+        Serial.println();
       }
     }
+    Serial.println();
   }
 } // CanPollDisplay
 

@@ -79,7 +79,7 @@ struct PGN130817CanFrames {
   unsigned int SN:3;
   union {
     struct {
-      unsigned int NBD:8;
+      unsigned int NBD:8;                      // LSBits
       unsigned int ManufactureCode:11;
       unsigned int Reserved:2;
       unsigned int IndustryGroup:3;
@@ -89,14 +89,14 @@ struct PGN130817CanFrames {
       unsigned int Status:16;
     };
     struct {
-      unsigned int ThrusterMotorTemperature:8;
+      unsigned int ThrusterMotorTemperature:8; // LSBits
       unsigned int ThrusterPowerTemperature:8;
       unsigned int ReservedC:8;
       unsigned int MotorVoltage:16; // 0.01v
                int MotorRPM:16; // Not implemented, 1/4RPM
     };
     struct {
-      unsigned int MotorCurrent:16;
+      unsigned int MotorCurrent:16;            // LSBits
       unsigned int OutputThrust:8;
       unsigned long AllFs:32;
     };
@@ -120,7 +120,7 @@ struct PGN65280CanFrame {
 
 struct InputType {
   INT8U SouthDoorDIO_Rx;
-  INT8U SouthDoorAnalog_Rx[2];
+  INT16U SouthDoorAnalog_Rx[1];
 
   // Will receive PGN130817 every 100ms
   union {
@@ -131,7 +131,7 @@ struct InputType {
   // South Hydraulic doesn't have Inputs
 
   INT8U NorthDoorDIO_Rx;
-  INT8U NorthDoorAnalog_Rx[2];
+  INT16U NorthDoorAnalog_Rx[1];
 
   // Will receive PGN130817 every 100ms
   union {
@@ -148,11 +148,12 @@ struct OutputType {
   union {
     INT8U SouthDoorDIO_Tx;
     struct {
-      INT8U South_Winter_Lock_Open:2;
+      INT8U South_Winter_Lock_Open:2; // LSBits
       INT8U Winter_Lock_Closed:2;
       INT8U UNUSED_SouthDoorDIO_Tx:4;
     }; // leave anonymous
   };
+#define SOUTHDOOR_OUTPUT_MASK 0x0f
 
   // PPC needs a heartbeat of PGN65280CanFrame every 100ms (300ms timeout)
   union {
@@ -163,19 +164,21 @@ struct OutputType {
   union {
     INT8U SouthHydraulic_Tx;
     struct {
-      INT8U Upper_South_Door:2;
+      INT8U Upper_South_Door:2;         // LSBits
       INT8U UNUSED_SouthHydraulic_Tx:6;
     };
   };
+#define SOUTHHYDRAULIC_OUTPUT_MASK 0x03
 
   union {
     INT8U NorthDoorDIO_Tx;
     struct {
-      INT8U North_Winter_Lock_Open:2;
+      INT8U North_Winter_Lock_Open:2;         // LSBits
       INT8U USED_AS_INPUTS_NorthDoorDIO_Tx:4;
       INT8U UNUSED_NorthDoorDIO_Tx;
     };
   };
+#define NORTHDOOR_OUTPUT_MASK 0x03
 
   union {
     INT8U NorthThruster_Tx[8];
@@ -185,12 +188,15 @@ struct OutputType {
   union {
     INT8U NorthHydraulic_Tx;
     struct {
-      INT8U Upper_North_Door:2;
+      INT8U Upper_North_Door:2;                 // LSBits
       INT8U USED_AS_INPUTS_NorthHydraulic_Tx:2;
       INT8U UNUSED_NorthHydraulic_Tx:4;
     };
   };
+#define NORTHHYDRAULIC_OUTPUT_MASK 0x03
 };
+
+extern OutputType Outputs;
 
 // Make use of pre-defined bitwise defines from Arduino.h:
 //#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -207,11 +213,11 @@ struct OutputType {
 #define Upper_South_Door_IsClosed          bitRead(Inputs.SouthDoorDIO_Rx,5)
 #define South_Winter_Door_Position         Inputs.SouthDoorAnalog_Rx[0]
 // North door control box
-#define North_Winter_Lock_Open_IsLatched   bitRead(Inputs.NorthDoorDIO_Rx,0)
-#define North_Winter_Lock_Open_IsUnlatched bitRead(Inputs.NorthDoorDIO_Rx,1)
-#define Upper_North_Door_IsOpen            bitRead(Inputs.NorthDoorDIO_Rx,2)
-#define Upper_North_Door_IsClosed          bitRead(Inputs.NorthDoorDIO_Rx,3)
-#define North_Winter_Door_Position         *(INT16U*)&Inputs.NorthDoorAnalog_Rx // dereference as 16 bit value
+#define North_Winter_Lock_Open_IsLatched   bitRead(Inputs.NorthDoorDIO_Rx,2)
+#define North_Winter_Lock_Open_IsUnlatched bitRead(Inputs.NorthDoorDIO_Rx,3)
+#define Upper_North_Door_IsOpen            bitRead(Inputs.NorthDoorDIO_Rx,4)
+#define Upper_North_Door_IsClosed          bitRead(Inputs.NorthDoorDIO_Rx,5)
+#define North_Winter_Door_Position         Inputs.NorthDoorAnalog_Rx[0]
 // North hydraulic
 #define Remote_IsRequestingOpen            bitRead(Inputs.NorthHydraulic_Rx,0)
 #define Remote_IsRequestingClose           bitRead(Inputs.NorthHydraulic_Rx,1)

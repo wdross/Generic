@@ -39,6 +39,7 @@ struct CanEntryType {
 };
 struct CanTxType {
   CFwTimer NextSendTime;
+  INT8U OutputMask;
   CanEntryType Can;
 };
 struct CanRxType {
@@ -53,13 +54,16 @@ extern long int Fault;
 extern long int OK;
 extern MCP_CAN CAN;
 
+extern bool HaveComm; // global flag, when true, can do all our processing
+#define NOT_TALKING_TIMEOUT 200 // ms without talking, we'll report !HaveComm
+
 
 void CanPollerInit();
 
 void CanPoller();
 
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf);
-void CanPollSetTx(INT32U COBID, char len, INT8U *buf);
+void CanPollSetTx(INT32U COBID, char len, INT8U *buf, INT8U mask);
 
 // Returns the amount of ms elapsed since the last reception
 long CanPollElapsedFromLastRxByCOBID(INT32U COBID);
