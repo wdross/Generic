@@ -2,6 +2,7 @@
 #define IODEFS_INCLUDED
 
 #include "CanOpen.h"
+#include "BitObject.h"
 
 // This will define the I/O points for the Merillat boathouse door project
 
@@ -27,7 +28,7 @@
 #define SOUTHDOORANALOG_RX_COBID MK_COBID(ESD_SOUTH_DOOR_ANALOG,TXPDO2)
 #define SOUTHTHRUSTER_RX_COBID   (IMTRA_PPC800_SOUTH|RX_PGN) // Extended!
 #define NORTHDOORDIO_RX_COBID    MK_COBID(ESD_NORTH_DOOR_DIO,TXPDO1)
-#define NORTHDOORANALOG_RX_COBID MK_COBID(ESD_NORTH_DOOR_ANALOG,TXPDO1)
+#define NORTHDOORANALOG_RX_COBID MK_COBID(ESD_NORTH_DOOR_ANALOG,TXPDO2)
 #define NORTHTHRUSTER_RX_COBID   (IMTRA_PPC800_NORTH|RX_PGN) // Extended!
 #define NORTHHYDRAULIC_RX_COBID  MK_COBID(ESD_NORTH_HYDRAULIC,TXPDO1)
 // Outputs
@@ -120,7 +121,7 @@ struct PGN65280CanFrame {
 
 struct InputType {
   INT8U SouthDoorDIO_Rx;
-  INT16U SouthDoorAnalog_Rx[1];
+  INT16S SouthDoorAnalog_Rx[1];
 
   // Will receive PGN130817 every 100ms
   union {
@@ -131,7 +132,7 @@ struct InputType {
   // South Hydraulic doesn't have Inputs
 
   INT8U NorthDoorDIO_Rx;
-  INT16U NorthDoorAnalog_Rx[1];
+  INT16S NorthDoorAnalog_Rx[1];
 
   // Will receive PGN130817 every 100ms
   union {
@@ -142,7 +143,7 @@ struct InputType {
   INT8U NorthHydraulic_Rx;
 };
 
-enum LatchRequestType {lr_NoRequest, lr_Unlatch_Request, lr_Latch_Request};
+enum LatchRequestType {lr_No_Request, lr_Unlatch_Request, lr_Latch_Request};
 
 struct OutputType {
   union {
@@ -196,31 +197,133 @@ struct OutputType {
 #define NORTHHYDRAULIC_OUTPUT_MASK 0x03
 };
 
+// Elements that should be stored in EEPROM over power downs:
+struct myEEType {
+  struct {
+    int Min, Max;
+    bool Valid;
+  } SouthDoor, NorthDoor;
+};
+
+extern myEEType myEE;
 extern OutputType Outputs;
+extern InputType  Inputs;
 
-// Make use of pre-defined bitwise defines from Arduino.h:
-//#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
-//#define bitSet(value, bit) ((value) |= (1UL << (bit)))
-//#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
-//#define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
+// GUI defines
+#define STEPS_CHANGE 239 // animate when no comm ma
+#define DEGREES_CHANGE 84.0
+#define MAX_ANGLE 90.0
+#define MIN_ANGLE (MAX_ANGLE-DEGREES_CHANGE)
 
-// South door control box
-#define South_Winter_Lock_Open_IsLatched   bitRead(Inputs.SouthDoorDIO_Rx,0)
-#define South_Winter_Lock_Open_IsUnlatched bitRead(Inputs.SouthDoorDIO_Rx,1)
-#define Winter_Lock_Closed_IsLatched       bitRead(Inputs.SouthDoorDIO_Rx,2)
-#define Winter_Lock_Closed_IsUnlatched     bitRead(Inputs.SouthDoorDIO_Rx,3)
-#define Upper_South_Door_IsOpen            bitRead(Inputs.SouthDoorDIO_Rx,4)
-#define Upper_South_Door_IsClosed          bitRead(Inputs.SouthDoorDIO_Rx,5)
-#define South_Winter_Door_Position         Inputs.SouthDoorAnalog_Rx[0]
-// North door control box
-#define North_Winter_Lock_Open_IsLatched   bitRead(Inputs.NorthDoorDIO_Rx,2)
-#define North_Winter_Lock_Open_IsUnlatched bitRead(Inputs.NorthDoorDIO_Rx,3)
-#define Upper_North_Door_IsOpen            bitRead(Inputs.NorthDoorDIO_Rx,4)
-#define Upper_North_Door_IsClosed          bitRead(Inputs.NorthDoorDIO_Rx,5)
-#define North_Winter_Door_Position         Inputs.NorthDoorAnalog_Rx[0]
-// North hydraulic
-#define Remote_IsRequestingOpen            bitRead(Inputs.NorthHydraulic_Rx,0)
-#define Remote_IsRequestingClose           bitRead(Inputs.NorthHydraulic_Rx,1)
+// Dimensional defines, defines decision points
+#define MIN_THRUST 50 // 1024ths thrust
+#define ROC_RATE 300 // ms to recompute Rate Of Change during Open/Close cycle
+#define ANALOG_TO_RADIANS(a) (((float)(a) / 32767.0) * 2.0 * M_PI)
+#define DEGREES_TO_RADIANS(d) (((float)(d) / 180.0) * M_PI)
 
 #endif // IODEFS_INCLUDED
+
+// Depending upon desire to create instances of BitObjects, we'll be doing extern or not
+
+// South door control box
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject South_Winter_Lock_Open_IsLatched
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.SouthDoorDIO_Rx,0)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject South_Winter_Lock_Open_IsUnlatched
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.SouthDoorDIO_Rx,1)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Winter_Lock_Closed_IsLatched
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.SouthDoorDIO_Rx,2)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Winter_Lock_Closed_IsUnlatched
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.SouthDoorDIO_Rx,3)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Upper_South_Door_IsOpen
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.SouthDoorDIO_Rx,4)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Upper_South_Door_IsClosed
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.SouthDoorDIO_Rx,5)
+#endif
+                                                                      ;
+#define South_Winter_Door_Position         Inputs.SouthDoorAnalog_Rx[0]
+// North door control box
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject North_Winter_Lock_Open_IsLatched
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.NorthDoorDIO_Rx,2)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject North_Winter_Lock_Open_IsUnlatched
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.NorthDoorDIO_Rx,3)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Upper_North_Door_IsOpen
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.NorthDoorDIO_Rx,4)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Upper_North_Door_IsClosed
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.NorthDoorDIO_Rx,5)
+#endif
+                                                                      ;
+#define North_Winter_Door_Position         Inputs.NorthDoorAnalog_Rx[0]
+// North hydraulic
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Remote_IsRequestingOpen
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.NorthHydraulic_Rx,2)
+#endif
+                                                                      ;
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Remote_IsRequestingClose
+#ifdef DEFINE_BITOBJECTS
+                                         (&Inputs.NorthHydraulic_Rx,3)
+#endif
+                                                                      ;
 

@@ -16,6 +16,10 @@
  *  The CAN-BUS Shield sits on the MEGA, but 2 pins on each side make
  *  no connection to the MEGA module.  This is OK.
  *
+ *  v1.6.12 of the Arduino IDE
+ *  v1.6.18 of the Boards Manager
+ *  Tools->Board: "Arduino/Genuino Mega or Mega 2560"
+ *
  *  The touch screen connection is a set of parallel pins on a dual-row header
  *  that needs to be extended (a row of 2x18 pass-thru header is required, 5/8" tall).
  *  Also need 2 nylon stand offs (1/8" dia screw x 7/16" body) with 2 nylon nuts, super
@@ -31,9 +35,15 @@ int doorLen, lDoorX, lDoorY, rDoorX, rDoorY;
 OutputType Outputs;
 InputType  Inputs;
 
+// Create BitObject elements
+#define DEFINE_BITOBJECTS
+#include "IODefs.h"
+#undef DEFINE_BITOBJECTS
+
 struct LastCoords {
   int X,Y;
-} LeftDoor, RightDoor, NewLeftDoor, NewRightDoor;
+} LeftDoor, RightDoor, NewLeftDoor, NewRightDoor,
+  UpperLeftDoor, UpperRightDoor, NewUpperLeftDoor, NewUpperRightDoor;
 
 // defines to be used as parameters to setColor() calls:
 #define BLACK 0,0,0
@@ -51,45 +61,48 @@ struct LastCoords {
 
 long delayUntil;
 
-// Elements that should be stored in EEPROM over power downs:
-struct {
-  struct {
-    int Min, Max;
-  } SouthDoor, NorthDoor;
-} myEE;
+myEEType myEE;
+
+const byte rawSize = 1;
+DoorOpen *g_pDoorOpen = NULL;
+StateMachine *rawArray[rawSize] = {g_pDoorOpen};
+Array<StateMachine *> lStateMachines = Array<StateMachine *>(rawArray, rawSize);
+
 
 // Enumerated States
 enum {esStopped, esOpening, esClosing} eState = esStopped;
 
 void DoorControl()
 {
+#define INCREMENTING_OUTPUTS
+#if defined(INCREMENTING_OUTPUTS)
   static CFwTimer Incrementer(1000);
-
-  // Logic to scan for Merillat boathouse control behavior
-  if (Remote_IsRequestingOpen) {
-    // switch to OPEN state machine
-    Outputs.South_Winter_Lock_Open = lr_Latch_Request;
+  if (Incrementer.IsTimeout()) {
+    Outputs.SouthThrusterTx.Thrust++;
+    Outputs.Upper_South_Door++; // ID x21
+    Outputs.North_Winter_Lock_Open++; // ID x31
+    Outputs.Upper_North_Door++; // ID x41 Hydraulic
+    Incrementer.IncrementTimer(1000);
   }
-  else if (Remote_IsRequestingClose) {
-    // switch to CLOSE state machine
-  }
+  return;
+#endif
 
   // Constantly monitor angle from hinges and maintain them in EEPROM to be
   // handled over power loss.
-  if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) < 250) {
-    // update is recent
-    if (South_Winter_Door_Position < myEE.SouthDoor.Min)
-      myEE.SouthDoor.Min = South_Winter_Door_Position;
-    if (South_Winter_Door_Position > myEE.SouthDoor.Max)
-      myEE.SouthDoor.Max = South_Winter_Door_Position;
-  }
-  if (CanPollElapsedFromLastRxByCOBID(NORTHDOORANALOG_RX_COBID) < 250) {
-    // update is recent
-    if (North_Winter_Door_Position < myEE.NorthDoor.Min)
-      myEE.NorthDoor.Min = North_Winter_Door_Position;
-    if (North_Winter_Door_Position > myEE.NorthDoor.Max)
-      myEE.NorthDoor.Max = North_Winter_Door_Position;
-  }
+//  if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) < 250) {
+//    // update is recent
+//    if (South_Winter_Door_Position < myEE.SouthDoor.Min)
+//      myEE.SouthDoor.Min = South_Winter_Door_Position;
+//    if (South_Winter_Door_Position > myEE.SouthDoor.Max)
+//      myEE.SouthDoor.Max = South_Winter_Door_Position;
+//  }
+//  if (CanPollElapsedFromLastRxByCOBID(NORTHDOORANALOG_RX_COBID) < 250) {
+//    // update is recent
+//    if (North_Winter_Door_Position < myEE.NorthDoor.Min)
+//      myEE.NorthDoor.Min = North_Winter_Door_Position;
+//    if (North_Winter_Door_Position > myEE.NorthDoor.Max)
+//      myEE.NorthDoor.Max = North_Winter_Door_Position;
+//  }
 
   switch (eState) {
     case esStopped:
@@ -112,20 +125,27 @@ void DoorControl()
       Outputs.NorthThrusterTx = Outputs.SouthThrusterTx;
       Outputs.NorthThrusterTx.ThrusterInstance = NORTH_THRUSTER_INSTANCE; // :4;
 
-      if (Incrementer.IsTimeout()) {
-        Outputs.SouthThrusterTx.Thrust++;
-        Incrementer.IncrementTimer(200);
+      // Logic to scan for Merillat boathouse control behavior
+      if (Remote_IsRequestingOpen.Read()) {
+        // switch to OPEN state machine
+        eState = esOpening;
+        g_pDoorOpen->_Clear();
       }
-
+      else if (Remote_IsRequestingClose.Read()) {
+        // switch to CLOSE state machine
+        eState = esOpening;
+      }
       break;
     case esOpening:
-      // Run thru the sequence to open
+//      DoorControlOpen();
       break;
     case esClosing:
       // sequence to close
+      Outputs.South_Winter_Lock_Open = lr_Latch_Request;
       break;
   }
 }
+
 
 void setup()
 {
@@ -159,15 +179,16 @@ void setup()
   myGLCD.setColor(255, 128, 128);
   myGLCD.setBackColor(64, 64, 64);
   myGLCD.print("Wayne Ross", LEFT, MAX_Y-12);
-  myGLCD.print("(C)2016", RIGHT, MAX_Y-12);
+  myGLCD.print("(C)2017", RIGHT, MAX_Y-12);
 
   // black screen to work on
   myGLCD.setColor(BLACK);
   myGLCD.fillRect(0, 14, MAX_X-1, MAX_Y-14);
 
+  // define door placement
   doorLen = 2*HEIGHT/3-12;
   lDoorX = 12; // indent enough for a letter to the left of us
-  lDoorY = 5*HEIGHT/6;
+  lDoorY = 5*HEIGHT/6-12;
   // mirror the right to the left
   rDoorX = MAX_X - lDoorX - 1;
   rDoorY = lDoorY;
@@ -180,24 +201,13 @@ void setup()
   myGLCD.setColor(BLUE);
   myGLCD.setBackColor(BLACK);
 
-  // place some letters to be used as Input state indicators
-  // left latch
-  myGLCD.print("U", 2, MAX_Y/3);
-  myGLCD.print("L", 2, MAX_Y/3+myGLCD.getFontHeight());
-  // right latch
-  myGLCD.print("U", MAX_X-1-myGLCD.getFontWidth(), MAX_Y/3);
-  myGLCD.print("L", MAX_X-1-myGLCD.getFontWidth(), MAX_Y/3+myGLCD.getFontHeight());
-  // center latch
-  myGLCD.print("U", MAX_X/2-myGLCD.getFontWidth(), MAX_Y-5*myGLCD.getFontHeight()/2);
-  myGLCD.print("L", MAX_X/2,MAX_Y-5*myGLCD.getFontHeight()/2);
-
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
 ///  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
   CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
 //  CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
   CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
-//  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
+  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
 //  CanPollSetRx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx);
 //  CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
 
@@ -207,9 +217,9 @@ void setup()
 //CanPollSetTx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx,  SOUTHDOOR_OUTPUT_MASK);
 //CanPollSetTx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), (INT8U*)&Outputs.SouthThruster_Tx, 0);
   CanPollSetTx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx,SOUTHHYDRAULIC_OUTPUT_MASK);
-//CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx,  NORTHDOOR_OUTPUT_MASK);
+  CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx,  NORTHDOOR_OUTPUT_MASK);
 //CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx, 0);
-//CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NORTHHYDRAULIC_OUTPUT_MASK);
+  CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NORTHHYDRAULIC_OUTPUT_MASK);
 
   CanPollDisplay(3); // show everything we've configured
 
@@ -219,9 +229,6 @@ void setup()
   delayUntil = millis(); // set to 'now'
 }
 
-#define STEPS_CHANGE 239
-#define DEGREES_CHANGE 84.0
-#define MIN_ANGLE (90.0-DEGREES_CHANGE)
 
 int i = 0;
 int dir = 1;
@@ -275,7 +282,6 @@ void loop()
   if ((i>=STEPS_CHANGE && dir>0) ||
       (i<=0 && dir<0)) {
     dir*=-1;
-Outputs.Upper_South_Door++; Serial.println(Outputs.Upper_South_Door);
     if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) > NOT_TALKING_TIMEOUT)
       delayUntil += 1500; // nothing to get angle from, pretend one
     return;
@@ -289,12 +295,21 @@ Outputs.Upper_South_Door++; Serial.println(Outputs.Upper_South_Door);
   float NorthAngle = M_PI - Angle; // 174..90 in radians
 
   if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) <= NOT_TALKING_TIMEOUT) {
-    SouthAngle = (float)South_Winter_Door_Position / 32767.0 * 2 * M_PI; // convert 0..4096 into 0..2pi
-    if (SouthAngle > M_PI/2)
-      SouthAngle = M_PI/2; // saturate over max
-    else if (SouthAngle < MIN_ANGLE / 180.0 * M_PI)
-      SouthAngle = MIN_ANGLE / 180.0 * M_PI;
-    NorthAngle = M_PI - SouthAngle;
+//    SouthAngle = (float)South_Winter_Door_Position / 32767.0 * 2 * M_PI;
+    SouthAngle = ANALOG_TO_RADIANS(South_Winter_Door_Position); // convert 0..4096 into 0..2pi
+    if (SouthAngle > M_PI/2) // over 90 deg?
+      SouthAngle = M_PI/2; // saturate at 90 deg
+    else if (SouthAngle < DEGREES_TO_RADIANS(MIN_ANGLE)) // below Min (or negative?)
+      SouthAngle = DEGREES_TO_RADIANS(MIN_ANGLE); // saturate at Min (closed)
+  }
+
+  if (CanPollElapsedFromLastRxByCOBID(NORTHDOORANALOG_RX_COBID) <= NOT_TALKING_TIMEOUT) {
+    NorthAngle = ANALOG_TO_RADIANS(North_Winter_Door_Position); // convert 0..4096 into 0..2pi
+    if (NorthAngle > M_PI/2) // over 90 deg?
+      NorthAngle = M_PI/2; // saturate at 90 deg
+    else if (NorthAngle < DEGREES_TO_RADIANS(MIN_ANGLE)) // below Min (or negative?)
+      NorthAngle = DEGREES_TO_RADIANS(MIN_ANGLE); // saturate at Min (closed)
+    NorthAngle = M_PI - NorthAngle; // mirror angle across 180
   }
 
   NewLeftDoor.Y = -sin(SouthAngle)*doorLen; // rise
@@ -325,6 +340,104 @@ Outputs.Upper_South_Door++; Serial.println(Outputs.Upper_South_Door);
     myGLCD.drawLine(rDoorX, rDoorY,NewRightDoor.X,NewRightDoor.Y);
     RightDoor = NewRightDoor;
   }
+
+#define UPPER_DOOR_OFFSET 2
+  byte UpperDoorState = Upper_South_Door_IsOpen.Read() + Upper_South_Door_IsClosed.Read()*2;
+  float UpperAngle;
+  switch (UpperDoorState) {
+    case 0: // Neither -- somewhere in between
+      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
+      break;
+    case 1: // Open
+      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
+      break;
+    case 2: // Closed
+      UpperAngle = DEGREES_TO_RADIANS(0);
+      break;
+    default: // Invalid
+      UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
+  }
+  NewUpperLeftDoor.Y = -sin(UpperAngle)*doorLen; // rise
+  NewUpperLeftDoor.X = cos(UpperAngle)*doorLen; // run
+  NewUpperLeftDoor.Y += lDoorY+UPPER_DOOR_OFFSET; // add in our offset, same for left and right
+  NewUpperLeftDoor.X += lDoorX+UPPER_DOOR_OFFSET;
+  if (NewUpperLeftDoor.X != UpperLeftDoor.X ||
+      NewUpperLeftDoor.Y != UpperLeftDoor.Y) {
+    // erase previous door position (in black)
+    myGLCD.setColor(BLACK);
+    myGLCD.drawLine(lDoorX+UPPER_DOOR_OFFSET,lDoorY+UPPER_DOOR_OFFSET,UpperLeftDoor.X,UpperLeftDoor.Y);
+    // draw new position
+    myGLCD.setColor(RED);
+    myGLCD.drawLine(lDoorX+UPPER_DOOR_OFFSET,lDoorY+UPPER_DOOR_OFFSET,NewUpperLeftDoor.X,NewUpperLeftDoor.Y);
+    UpperLeftDoor = NewUpperLeftDoor;
+  }
+
+  UpperDoorState = Upper_North_Door_IsOpen.Read() + Upper_North_Door_IsClosed.Read()*2;
+  switch (UpperDoorState) {
+    case 0: // Neither -- somewhere in between
+      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
+      break;
+    case 1: // Open
+      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
+      break;
+    case 2: // Closed
+      UpperAngle = DEGREES_TO_RADIANS(0);
+      break;
+    default: // Invalid
+      UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
+  }
+  UpperAngle = M_PI - UpperAngle; // mirror angle across 180
+  NewUpperRightDoor.Y = -sin(UpperAngle)*doorLen; // rise
+  NewUpperRightDoor.Y += rDoorY+UPPER_DOOR_OFFSET; // add in offset
+  NewUpperRightDoor.X = rDoorX-UPPER_DOOR_OFFSET + cos(UpperAngle)*doorLen; // run
+  if (NewUpperRightDoor.X != UpperRightDoor.X ||
+      NewUpperRightDoor.Y != UpperRightDoor.Y) {
+    // erase previous door position (in black)
+    myGLCD.setColor(BLACK);
+    myGLCD.drawLine(rDoorX-UPPER_DOOR_OFFSET,rDoorY+UPPER_DOOR_OFFSET,UpperRightDoor.X,UpperRightDoor.Y);
+    // draw new position
+    myGLCD.setColor(RED);
+    myGLCD.drawLine(rDoorX-UPPER_DOOR_OFFSET,rDoorY+UPPER_DOOR_OFFSET,NewUpperRightDoor.X,NewUpperRightDoor.Y);
+    UpperRightDoor = NewUpperRightDoor;
+  }
+
+
+  static struct {
+    char *Text;
+    INT32S X,Y;
+    bool LastState;
+    BitObject *Source;
+  } DI_display[] = {
+    // Requests coming from remote control:
+    {"Open", MAX_X/2-myGLCD.getFontWidth()*2,    myGLCD.getFontHeight()*2,        true,&Remote_IsRequestingOpen},
+    {"Close",MAX_X/2-(myGLCD.getFontWidth()*5)/2,myGLCD.getFontHeight()*3,        true,&Remote_IsRequestingClose},
+    // south latch
+    {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
+    {"L",    2,                                  MAX_Y/3+myGLCD.getFontHeight(),  true,&South_Winter_Lock_Open_IsLatched},
+    //  north latch
+    {"U",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3,                         true,&North_Winter_Lock_Open_IsUnlatched},
+    {"L",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3+myGLCD.getFontHeight(),  true,&North_Winter_Lock_Open_IsLatched},
+    // winter/center latch
+    {"U",    MAX_X/2-myGLCD.getFontWidth(),      MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsUnlatched},
+    {"L",    MAX_X/2,                            MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsLatched}
+  };
+
+  // include display of digital inputs being active (letter(s) with background green)
+  // inactive inputs get same letters with background black
+  myGLCD.setColor(BLUE);
+  for (int z=0; z<sizeof(DI_display)/sizeof(DI_display[0]); z++) {
+    bool current = DI_display[z].Source->Read();
+    if (DI_display[z].LastState != current) {
+
+      if (current)
+        myGLCD.setBackColor(GREEN);
+      else
+        myGLCD.setBackColor(BLACK);
+      myGLCD.print(DI_display[z].Text, DI_display[z].X, DI_display[z].Y);
+      DI_display[z].LastState = current; // update, wait until a change to do again
+    }
+  }
+
   delayUntil += 130; // Increment timer relative, steady moving doors
 #endif
 }
