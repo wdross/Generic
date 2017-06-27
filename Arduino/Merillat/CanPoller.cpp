@@ -143,14 +143,18 @@ int MapFnToCommParam(INT32U COBID)
 CFwTimer GrossTimeoutChecker;
 CFwTimer NominalTimer;
 bool HaveComm = false;
-// This is being call upon a hardware timer every 1ms thru use of the FlexiTimer2 class.
+// This is being called upon a hardware timer every 0.4ms thru use of the FlexiTimer2 class.
+// The time value was selected based upon some sample data taken from 7 ESD modules connected
+// and responding in our needed fashion, and seeing the shortest aparent message was a single
+// 0.26ms but is more typically 0.44-0.52ms per shortest arrival message.
 // It services both in and outbound messages, so MUST BE EFFICIENT!!
 void CanPoller()
 {
-  static bool ReEntry = false;
-  if (ReEntry)
-    return;
-  ReEntry = true;
+  // did an experiment which indicates there is no reentry risk here --
+  // it appears the interrupts stack and ends up with back-to-back calls
+  // should things run behind.
+  static INT16U EntryCount=0;
+  EntryCount++;
 
   int j;
   // let's receive all messages into their registered buffer
@@ -171,6 +175,14 @@ void CanPoller()
       }
     }
   }
+
+  // The rest of this routine doesn't need to run at nearly the same interval
+  // as checking for message arrivals, so we'll scale back how often the time-out and
+  // transmit checks are made.  If we keep at the same 0.4ms rate, and if we only run
+  // every few calls, then we'd check at 3.2ms intervals -- close enough!
+  if (EntryCount % 8 != 0)
+    return;
+
 
   if (GrossTimeoutChecker.IsTimeout()) {
     bool AnyExpired = false;
@@ -231,7 +243,6 @@ void CanPoller()
           Serial.print(" = ");
           Serial.println(Value);
 #endif
-          ReEntry = false;
           return;
         }
         CheckRX++;
@@ -262,7 +273,6 @@ void CanPoller()
           Serial.print(" = ");
           Serial.println(Value);
 #endif
-          ReEntry = false;
           return;
         }
         CheckRX++;
@@ -277,7 +287,6 @@ void CanPoller()
 #if !defined(DO_LOGGING)
         Serial.println("NMT");
 #endif
-        ReEntry = false;
         return;
       }
       SYNCsend();
@@ -286,7 +295,6 @@ void CanPoller()
 #endif
       NoCommTimer.SetTimer(NO_COMM_INTERVAL);
       CheckRX = 0; // go ahead and wrap around, in case something still isn't answering
-      ReEntry = false;
       return;
     }
   }
@@ -312,7 +320,6 @@ void CanPoller()
       }
     }
   } // Comm appears to be OK
-  ReEntry = false;
 } // CanPoller
 
 void CanPollDisplay(int io)
