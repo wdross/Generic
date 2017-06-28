@@ -45,19 +45,10 @@ struct LastCoords {
 } LeftDoor, RightDoor, NewLeftDoor, NewRightDoor,
   UpperLeftDoor, UpperRightDoor, NewUpperLeftDoor, NewUpperRightDoor;
 
-// defines to be used as parameters to setColor() calls:
-#define BLACK 0,0,0
-#define WHITE 255,255,255
-#define RED 255,0,0
-#define GREEN 0,255,0
-#define BLUE 0,0,255
-
 // screen dimentions:
-#define WIDTH myGLCD.getYSize()
-#define HEIGHT myGLCD.getXSize()
 // our perpective, as we are doing landscape (the wide way)
-#define MAX_X (WIDTH-1)  // 319
-#define MAX_Y (HEIGHT-1) // 239
+#define MAX_X myGLCD.getYSize() // 319
+#define MAX_Y myGLCD.getXSize() // 239
 
 long delayUntil;
 
@@ -81,7 +72,7 @@ void DoorControl()
     Outputs.SouthThrusterTx.Thrust++;
     Outputs.South_Winter_Lock_Open++; // ID x11
     if (Outputs.South_Winter_Lock_Open == 0)
-      Outputs.Winter_Lock_Closed++;   // ID x11 too
+      Outputs.Winter_Lock_Closed++;   // ID x11 to cascade bits
     Outputs.Upper_South_Door++;       // ID x21
     Outputs.North_Winter_Lock_Open++; // ID x31
     Outputs.Upper_North_Door++;       // ID x41 Hydraulic
@@ -172,26 +163,10 @@ void setup()
   // Clear the screen and draw the frame
   myGLCD.clrScr();
 
-  myGLCD.setColor(RED);
-  myGLCD.fillRect(0, 0, MAX_X, 13); // top 13 pixels
-  myGLCD.setColor(64, 64, 64);
-  myGLCD.fillRect(0, MAX_Y-13, MAX_X, MAX_Y);
-  myGLCD.setColor(WHITE);
-  myGLCD.setBackColor(RED);
-  myGLCD.print("** Merillat Boathouse door controller **", CENTER, 1);
-  myGLCD.setColor(255, 128, 128);
-  myGLCD.setBackColor(64, 64, 64);
-  myGLCD.print("Wayne Ross", LEFT, MAX_Y-12);
-  myGLCD.print("(C)2017", RIGHT, MAX_Y-12);
-
-  // black screen to work on
-  myGLCD.setColor(BLACK);
-  myGLCD.fillRect(0, 14, MAX_X-1, MAX_Y-14);
-
   // define door placement
-  doorLen = 2*HEIGHT/3-12;
+  doorLen = 2*MAX_Y/3-12;
   lDoorX = 12; // indent enough for a letter to the left of us
-  lDoorY = 5*HEIGHT/6-12;
+  lDoorY = 5*MAX_Y/6-12;
   // mirror the right to the left
   rDoorX = MAX_X - lDoorX - 1;
   rDoorY = lDoorY;
@@ -200,9 +175,6 @@ void setup()
   LeftDoor.Y = lDoorY;
   RightDoor.X = rDoorX;
   RightDoor.Y = rDoorY;
-
-  myGLCD.setColor(BLUE);
-  myGLCD.setBackColor(BLACK);
 
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
@@ -232,9 +204,6 @@ void setup()
   delayUntil = millis(); // set to 'now'
 }
 
-
-int i = 0;
-int dir = 1;
 
 // loop() no longer services the CAN I/O; that is now serviced directly
 // by the configured Timer2 hitting CanPoller() every ms
@@ -281,165 +250,208 @@ void loop()
   if (millis() < delayUntil)
     return;
 
-  // Draw pivoting lines as doors
-  if ((i>=STEPS_CHANGE && dir>0) ||
-      (i<=0 && dir<0)) {
-    dir*=-1;
-    if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) > NOT_TALKING_TIMEOUT)
-      delayUntil += 1500; // nothing to get angle from, pretend one
-    return;
+  // Show communications status
+  static CFwTimer GUITimer;
+  static bool LastComm = true;
+  static byte PaintStatics = 0;
+  static bool Cleared = false;
+  if (HaveComm != LastComm) {
+    myGLCD.clrScr();
+    GUITimer.SetTimer(0); // expire right away
+    LastComm = HaveComm;
+    PaintStatics = HaveComm; // draw all if we just got Comm
   }
-
-  // Pre-calculate as much of the new angle as possible
-  i+=3*dir;
-  float Angle = MIN_ANGLE + ((float)i*DEGREES_CHANGE/STEPS_CHANGE); // degrees: 6..90 degrees
-  Angle = Angle / 180.0 * M_PI; // radians
-  float SouthAngle = Angle;        //   6..90 in radians
-  float NorthAngle = M_PI - Angle; // 174..90 in radians
-
-  if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) <= NOT_TALKING_TIMEOUT) {
-//    SouthAngle = (float)South_Winter_Door_Position / 32767.0 * 2 * M_PI;
-    SouthAngle = ANALOG_TO_RADIANS(South_Winter_Door_Position); // convert 0..4096 into 0..2pi
+  if (!HaveComm) {
+    static bool lastToggle = true;
+    if (GUITimer.IsTimeout()) {
+      lastToggle = !lastToggle;
+      if (lastToggle) {
+        myGLCD.setColor(RED);
+        myGLCD.setBackColor(GREEN);
+      }
+      else {
+        myGLCD.setColor(GREEN);
+        myGLCD.setBackColor(RED);
+      }
+      myGLCD.print("MISSING COMMS",(MAX_X-(myGLCD.getFontWidth()*12))/2, myGLCD.getFontHeight()*3);
+      GUITimer.IncrementTimer(250);
+    }
+  }
+  else { // HaveComm, see about updating any changed elements
+#define BUMP_GUI_TIMER if (GUITimer.IsTimeout()) PaintStatics=2; GUITimer.SetTimer(60000);
+    float SouthAngle = ANALOG_TO_RADIANS(South_Winter_Door_Position); // convert 0..4096 into 0..2pi
     if (SouthAngle > M_PI/2) // over 90 deg?
       SouthAngle = M_PI/2; // saturate at 90 deg
     else if (SouthAngle < DEGREES_TO_RADIANS(MIN_ANGLE)) // below Min (or negative?)
       SouthAngle = DEGREES_TO_RADIANS(MIN_ANGLE); // saturate at Min (closed)
-  }
 
-  if (CanPollElapsedFromLastRxByCOBID(NORTHDOORANALOG_RX_COBID) <= NOT_TALKING_TIMEOUT) {
-    NorthAngle = ANALOG_TO_RADIANS(North_Winter_Door_Position); // convert 0..4096 into 0..2pi
+    float NorthAngle = ANALOG_TO_RADIANS(North_Winter_Door_Position); // convert 0..4096 into 0..2pi
     if (NorthAngle > M_PI/2) // over 90 deg?
       NorthAngle = M_PI/2; // saturate at 90 deg
     else if (NorthAngle < DEGREES_TO_RADIANS(MIN_ANGLE)) // below Min (or negative?)
       NorthAngle = DEGREES_TO_RADIANS(MIN_ANGLE); // saturate at Min (closed)
     NorthAngle = M_PI - NorthAngle; // mirror angle across 180
-  }
 
-  NewLeftDoor.Y = -sin(SouthAngle)*doorLen; // rise
-  NewLeftDoor.X = cos(SouthAngle)*doorLen; // run
-  NewLeftDoor.Y += lDoorY; // add in our offset, same for left and right
-  NewLeftDoor.X += lDoorX;
-  if (NewLeftDoor.X != LeftDoor.X ||
-      NewLeftDoor.Y != LeftDoor.Y) {
-    // erase previous door position (in black)
-    myGLCD.setColor(BLACK);
-    myGLCD.drawLine(lDoorX,lDoorY,LeftDoor.X,LeftDoor.Y);
-    // draw new positions in Green
-    myGLCD.setColor(GREEN);
-    myGLCD.drawLine(lDoorX, lDoorY,NewLeftDoor.X,NewLeftDoor.Y);
-    LeftDoor = NewLeftDoor;
-  }
+    NewLeftDoor.Y = -sin(SouthAngle)*doorLen; // rise
+    NewLeftDoor.X = cos(SouthAngle)*doorLen; // run
+    NewLeftDoor.Y += lDoorY; // add in our offset, same for left and right
+    NewLeftDoor.X += lDoorX;
+#define DOOR_CHANGE 2 // more than this many pixels change before we draw it
+    if (PaintStatics ||
+        abs(NewLeftDoor.X - LeftDoor.X) > DOOR_CHANGE ||
+        abs(NewLeftDoor.Y - LeftDoor.Y) > DOOR_CHANGE) {
+      // erase previous door position (in black)
+      myGLCD.setColor(BLACK);
+      myGLCD.drawLine(lDoorX,lDoorY,LeftDoor.X,LeftDoor.Y);
+      // draw new positions in Green
+      myGLCD.setColor(GREEN);
+      myGLCD.drawLine(lDoorX, lDoorY,NewLeftDoor.X,NewLeftDoor.Y);
+      LeftDoor = NewLeftDoor;
+      BUMP_GUI_TIMER;
+    }
 
-  NewRightDoor.Y = -sin(NorthAngle)*doorLen; // rise
-  NewRightDoor.Y += rDoorY; // add in offset
-  NewRightDoor.X = rDoorX + cos(NorthAngle)*doorLen; // run
-  if (NewRightDoor.X != RightDoor.X ||
-      NewRightDoor.Y != RightDoor.Y) {
-    // erase previous door position (in black)
-    myGLCD.setColor(BLACK);
-    myGLCD.drawLine(rDoorX,rDoorY,RightDoor.X,RightDoor.Y);
-    // draw new positions in Green
-    myGLCD.setColor(GREEN);
-    myGLCD.drawLine(rDoorX, rDoorY,NewRightDoor.X,NewRightDoor.Y);
-    RightDoor = NewRightDoor;
-  }
+    NewRightDoor.Y = -sin(NorthAngle)*doorLen; // rise
+    NewRightDoor.Y += rDoorY; // add in offset
+    NewRightDoor.X = rDoorX + cos(NorthAngle)*doorLen; // run
+    if (PaintStatics ||
+        abs(NewRightDoor.X - RightDoor.X) > DOOR_CHANGE ||
+        abs(NewRightDoor.Y - RightDoor.Y) > DOOR_CHANGE) {
+      // erase previous door position (in black)
+      myGLCD.setColor(BLACK);
+      myGLCD.drawLine(rDoorX,rDoorY,RightDoor.X,RightDoor.Y);
+      // draw new positions in Green
+      myGLCD.setColor(GREEN);
+      myGLCD.drawLine(rDoorX, rDoorY,NewRightDoor.X,NewRightDoor.Y);
+      RightDoor = NewRightDoor;
+      BUMP_GUI_TIMER;
+    }
 
 #define UPPER_DOOR_OFFSET 2
-  byte UpperDoorState = Upper_South_Door_IsOpen.Read() + Upper_South_Door_IsClosed.Read()*2;
-  float UpperAngle;
-  switch (UpperDoorState) {
-    case 0: // Neither -- somewhere in between
-      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
-      break;
-    case 1: // Open
-      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
-      break;
-    case 2: // Closed
-      UpperAngle = DEGREES_TO_RADIANS(0);
-      break;
-    default: // Invalid
-      UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
-  }
-  NewUpperLeftDoor.Y = -sin(UpperAngle)*doorLen; // rise
-  NewUpperLeftDoor.X = cos(UpperAngle)*doorLen; // run
-  NewUpperLeftDoor.Y += lDoorY+UPPER_DOOR_OFFSET; // add in our offset, same for left and right
-  NewUpperLeftDoor.X += lDoorX+UPPER_DOOR_OFFSET;
-  if (NewUpperLeftDoor.X != UpperLeftDoor.X ||
-      NewUpperLeftDoor.Y != UpperLeftDoor.Y) {
-    // erase previous door position (in black)
-    myGLCD.setColor(BLACK);
-    myGLCD.drawLine(lDoorX+UPPER_DOOR_OFFSET,lDoorY+UPPER_DOOR_OFFSET,UpperLeftDoor.X,UpperLeftDoor.Y);
-    // draw new position
-    myGLCD.setColor(RED);
-    myGLCD.drawLine(lDoorX+UPPER_DOOR_OFFSET,lDoorY+UPPER_DOOR_OFFSET,NewUpperLeftDoor.X,NewUpperLeftDoor.Y);
-    UpperLeftDoor = NewUpperLeftDoor;
-  }
-
-  UpperDoorState = Upper_North_Door_IsOpen.Read() + Upper_North_Door_IsClosed.Read()*2;
-  switch (UpperDoorState) {
-    case 0: // Neither -- somewhere in between
-      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
-      break;
-    case 1: // Open
-      UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
-      break;
-    case 2: // Closed
-      UpperAngle = DEGREES_TO_RADIANS(0);
-      break;
-    default: // Invalid
-      UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
-  }
-  UpperAngle = M_PI - UpperAngle; // mirror angle across 180
-  NewUpperRightDoor.Y = -sin(UpperAngle)*doorLen; // rise
-  NewUpperRightDoor.Y += rDoorY+UPPER_DOOR_OFFSET; // add in offset
-  NewUpperRightDoor.X = rDoorX-UPPER_DOOR_OFFSET + cos(UpperAngle)*doorLen; // run
-  if (NewUpperRightDoor.X != UpperRightDoor.X ||
-      NewUpperRightDoor.Y != UpperRightDoor.Y) {
-    // erase previous door position (in black)
-    myGLCD.setColor(BLACK);
-    myGLCD.drawLine(rDoorX-UPPER_DOOR_OFFSET,rDoorY+UPPER_DOOR_OFFSET,UpperRightDoor.X,UpperRightDoor.Y);
-    // draw new position
-    myGLCD.setColor(RED);
-    myGLCD.drawLine(rDoorX-UPPER_DOOR_OFFSET,rDoorY+UPPER_DOOR_OFFSET,NewUpperRightDoor.X,NewUpperRightDoor.Y);
-    UpperRightDoor = NewUpperRightDoor;
-  }
-
-
-  static struct {
-    char *Text;
-    INT32S X,Y;
-    bool LastState;
-    BitObject *Source;
-  } DI_display[] = {
-    // Requests coming from remote control:
-    {"Open", MAX_X/2-myGLCD.getFontWidth()*2,    myGLCD.getFontHeight()*2,        true,&Remote_IsRequestingOpen},
-    {"Close",MAX_X/2-(myGLCD.getFontWidth()*5)/2,myGLCD.getFontHeight()*3,        true,&Remote_IsRequestingClose},
-    // south latch
-    {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
-    {"L",    2,                                  MAX_Y/3+myGLCD.getFontHeight(),  true,&South_Winter_Lock_Open_IsLatched},
-    //  north latch
-    {"U",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3,                         true,&North_Winter_Lock_Open_IsUnlatched},
-    {"L",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3+myGLCD.getFontHeight(),  true,&North_Winter_Lock_Open_IsLatched},
-    // winter/center latch
-    {"U",    MAX_X/2-myGLCD.getFontWidth(),      MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsUnlatched},
-    {"L",    MAX_X/2,                            MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsLatched}
-  };
-
-  // include display of digital inputs being active (letter(s) with background green)
-  // inactive inputs get same letters with background black
-  myGLCD.setColor(BLUE);
-  for (int z=0; z<sizeof(DI_display)/sizeof(DI_display[0]); z++) {
-    bool current = DI_display[z].Source->Read();
-    if (DI_display[z].LastState != current) {
-
-      if (current)
-        myGLCD.setBackColor(GREEN);
-      else
-        myGLCD.setBackColor(BLACK);
-      myGLCD.print(DI_display[z].Text, DI_display[z].X, DI_display[z].Y);
-      DI_display[z].LastState = current; // update, wait until a change to do again
+    byte UpperDoorState = Upper_South_Door_IsOpen.Read() + Upper_South_Door_IsClosed.Read()*2;
+    float UpperAngle;
+    switch (UpperDoorState) {
+      case 0: // Neither -- somewhere in between
+        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
+        break;
+      case 1: // Open
+        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
+        break;
+      case 2: // Closed
+        UpperAngle = DEGREES_TO_RADIANS(0);
+        break;
+      default: // Invalid
+        UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
     }
-  }
+    NewUpperLeftDoor.Y = -sin(UpperAngle)*doorLen; // rise
+    NewUpperLeftDoor.X = cos(UpperAngle)*doorLen; // run
+    NewUpperLeftDoor.Y += lDoorY+UPPER_DOOR_OFFSET; // add in our offset, same for left and right
+    NewUpperLeftDoor.X += lDoorX+UPPER_DOOR_OFFSET;
+    if (PaintStatics ||
+        NewUpperLeftDoor.X != UpperLeftDoor.X ||
+        NewUpperLeftDoor.Y != UpperLeftDoor.Y) {
+      // erase previous door position (in black)
+      myGLCD.setColor(BLACK);
+      myGLCD.drawLine(lDoorX+UPPER_DOOR_OFFSET,lDoorY+UPPER_DOOR_OFFSET,UpperLeftDoor.X,UpperLeftDoor.Y);
+      // draw new position
+      myGLCD.setColor(RED);
+      myGLCD.drawLine(lDoorX+UPPER_DOOR_OFFSET,lDoorY+UPPER_DOOR_OFFSET,NewUpperLeftDoor.X,NewUpperLeftDoor.Y);
+      UpperLeftDoor = NewUpperLeftDoor;
+      BUMP_GUI_TIMER;
+    }
+
+    UpperDoorState = Upper_North_Door_IsOpen.Read() + Upper_North_Door_IsClosed.Read()*2;
+    switch (UpperDoorState) {
+      case 0: // Neither -- somewhere in between
+        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
+        break;
+      case 1: // Open
+        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
+        break;
+      case 2: // Closed
+        UpperAngle = DEGREES_TO_RADIANS(0);
+        break;
+      default: // Invalid
+        UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
+    }
+    UpperAngle = M_PI - UpperAngle; // mirror angle across 180
+    NewUpperRightDoor.Y = -sin(UpperAngle)*doorLen; // rise
+    NewUpperRightDoor.Y += rDoorY+UPPER_DOOR_OFFSET; // add in offset
+    NewUpperRightDoor.X = rDoorX-UPPER_DOOR_OFFSET + cos(UpperAngle)*doorLen; // run
+    if (PaintStatics ||
+        NewUpperRightDoor.X != UpperRightDoor.X ||
+        NewUpperRightDoor.Y != UpperRightDoor.Y) {
+      // erase previous door position (in black)
+      myGLCD.setColor(BLACK);
+      myGLCD.drawLine(rDoorX-UPPER_DOOR_OFFSET,rDoorY+UPPER_DOOR_OFFSET,UpperRightDoor.X,UpperRightDoor.Y);
+      // draw new position
+      myGLCD.setColor(RED);
+      myGLCD.drawLine(rDoorX-UPPER_DOOR_OFFSET,rDoorY+UPPER_DOOR_OFFSET,NewUpperRightDoor.X,NewUpperRightDoor.Y);
+      UpperRightDoor = NewUpperRightDoor;
+      BUMP_GUI_TIMER;
+    }
+
+
+    static struct {
+      char *Text;
+      INT32S X,Y;
+      bool LastState;
+      BitObject *Source;
+    } DI_display[] = {
+      // Requests coming from remote control:
+      {"Open", MAX_X/2-myGLCD.getFontWidth()*2,    myGLCD.getFontHeight()*2,        true,&Remote_IsRequestingOpen},
+      {"Close",MAX_X/2-(myGLCD.getFontWidth()*5)/2,myGLCD.getFontHeight()*3,        true,&Remote_IsRequestingClose},
+      // south latch
+      {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
+      {"L",    2,                                  MAX_Y/3+myGLCD.getFontHeight(),  true,&South_Winter_Lock_Open_IsLatched},
+      //  north latch
+      {"U",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3,                         true,&North_Winter_Lock_Open_IsUnlatched},
+      {"L",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3+myGLCD.getFontHeight(),  true,&North_Winter_Lock_Open_IsLatched},
+      // winter/center latch
+      {"U",    MAX_X/2-myGLCD.getFontWidth(),      MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsUnlatched},
+      {"L",    MAX_X/2,                            MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsLatched}
+    };
+
+    // include display of digital inputs being active (letter(s) with background green)
+    // inactive inputs get same letters with background black
+    for (int z=0; z<sizeof(DI_display)/sizeof(DI_display[0]); z++) {
+      bool current = DI_display[z].Source->Read();
+      if (PaintStatics ||
+          DI_display[z].LastState != current) {
+        if (current) {
+          myGLCD.setColor(BLUE);
+          myGLCD.setBackColor(GREEN);
+        }
+        else {
+          myGLCD.setColor(YELLOW);
+          myGLCD.setBackColor(BLACK);
+        }
+        myGLCD.print(DI_display[z].Text, DI_display[z].X, DI_display[z].Y);
+        DI_display[z].LastState = current; // update, wait until a change to do again
+        BUMP_GUI_TIMER;
+      }
+    }
+
+    if (PaintStatics) {
+      myGLCD.setColor(64, 64, 64);
+      myGLCD.fillRect(0, MAX_Y-13, MAX_X, MAX_Y); // bottom 13 pixels
+      myGLCD.setColor(WHITE);
+      myGLCD.setBackColor(RED);
+      myGLCD.print("** Merillat Boathouse door controller **", CENTER, 1);
+      myGLCD.setColor(255, 128, 128);
+      myGLCD.setBackColor(64, 64, 64);
+      myGLCD.print("Wayne Ross", LEFT, MAX_Y-12);
+      myGLCD.print("(C)2017", RIGHT, MAX_Y-12);
+      PaintStatics--; // should end up with 2 passes to draw everything back
+    }
+    if (GUITimer.IsTimeout() && !Cleared) {
+      // nothing has been updated lately, so let's invoke 'screen saver'
+      GUITimer.SetTimer(0); // ensure it cannot wrap/wake up
+      myGLCD.clrScr(); // black
+      Cleared = true;
+    }
+    else if (!GUITimer.IsTimeout())
+      Cleared = false; // latch reset
+  } // HaveComm
 
   delayUntil += 130; // Increment timer relative, steady moving doors
 #endif

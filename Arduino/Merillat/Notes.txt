@@ -1,13 +1,11 @@
-As of 12/30/2016, need to:
+As of 06/28/2017, need to:
 - Actual state sequence machine for controlling door logic
+  - started, using StateMachine.h/cpp
 - Alter RxTest software on Uno to respond, making a simulator
   when a jumper or input is set (so no pgm change needed to just log)
 - GUI:
-  - Figure out why hardware doesn't always work together -- it did sometimes!
   - represent outputs
-  - inputs
   - activate Touch functions:
-    - 'screen saver' is nothing but a black screen, to prevent burn-in
     - 'screen saver' mode -- touch to wake
     - touch an Open/Close input request to start sequence?
 
@@ -16,8 +14,13 @@ Done:
   - currently boots at 500kBaud
   - outputs data in CANKing format (thanks Pete!)
   - can request baud rate change, pause/resume (thanks Pete!)
-- Fixed consistent timing of CAN message by using 1ms Timer2 to 
-  constantly check inbound and outbound queues.  Could be improved,
-  but we'll see how this goes right now.
+- Fixed consistent timing of CAN message by using 0.4ms FlexiTimer2 to
+  constantly check inbound and outbound queues.  Test with professional
+  CAN hardware showed shortest message ~0.26ms, but typically 0.44ms+,
+  leading to the selection of 0.4ms timer configuration.
 - Created CAN union/structures for Thruster Tx/Rx messages
 - Confirmed Thruster TX byte order was as expected on the CANBus
+- GUI:
+  - Appears to work with Seeed CAN module as long as using FlexiTimer2
+  - Most inputs are represented (green background on text for Active inputs)
+  - 'screen saver' is nothing but a black screen, to prevent burn-in
