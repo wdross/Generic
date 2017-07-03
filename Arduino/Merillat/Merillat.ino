@@ -50,32 +50,27 @@ struct LastCoords {
 #define MAX_X myGLCD.getYSize() // 319
 #define MAX_Y myGLCD.getXSize() // 239
 
-long delayUntil;
-
 myEEType myEE;
 
 const byte rawSize = 1;
-DoorOpen *g_pDoorOpen = NULL;
-StateMachine *rawArray[rawSize] = {g_pDoorOpen};
+DoorStates *g_pDoorStates = new DoorStates();
+StateMachine *rawArray[rawSize] = {g_pDoorStates};
 Array<StateMachine *> lStateMachines = Array<StateMachine *>(rawArray, rawSize);
-
-
-// Enumerated States
-enum {esStopped, esOpening, esClosing} eState = esStopped;
 
 void DoorControl()
 {
-#define INCREMENTING_OUTPUTS
+#undef INCREMENTING_OUTPUTS
 #if defined(INCREMENTING_OUTPUTS)
-  static CFwTimer Incrementer(1000);
+  static CFwTimer Incrementer(0);
   if (Incrementer.IsTimeout()) {
     Outputs.SouthThrusterTx.Thrust++;
-    Outputs.South_Winter_Lock_Open++; // ID x11
-    if (Outputs.South_Winter_Lock_Open == 0)
-      Outputs.Winter_Lock_Closed++;   // ID x11 to cascade bits
-    Outputs.Upper_South_Door++;       // ID x21
-    Outputs.North_Winter_Lock_Open++; // ID x31
-    Outputs.Upper_North_Door++;       // ID x41 Hydraulic
+    South_Winter_Lock_Open.Write(South_Winter_Lock_Open.Read()+1); // ID x11
+    if (South_Winter_Lock_Open.Read() == 0) {
+      Winter_Lock_Closed.Write(Winter_Lock_Closed.Read()+1);       // ID x11 to cascade bits
+    }
+    Upper_South_Door.Write(Upper_South_Door.Read()+1);             // ID x21
+    North_Winter_Lock_Open.Write(North_Winter_Lock_Open.Read()+1); // ID x31
+    Upper_North_Door.Write(Upper_North_Door.Read()+1);             // ID x41 Hydraulic
     Incrementer.IncrementTimer(1000);
   }
   return;
@@ -97,47 +92,6 @@ void DoorControl()
 //    if (North_Winter_Door_Position > myEE.NorthDoor.Max)
 //      myEE.NorthDoor.Max = North_Winter_Door_Position;
 //  }
-
-  switch (eState) {
-    case esStopped:
-      // Ensure nothing is running
-      Outputs.South_Winter_Lock_Open = 0;
-      Outputs.Winter_Lock_Closed = 0;
-      Outputs.Upper_South_Door = 0;
-      Outputs.North_Winter_Lock_Open = 0;
-      Outputs.Upper_North_Door = 0;
-      Outputs.SouthThrusterTx.ManufactureCode = 306;// :11;
-      Outputs.SouthThrusterTx.Reserved = 0x3; // :2, all 1s
-      Outputs.SouthThrusterTx.IndustryGroup = 4; //:3;
-      Outputs.SouthThrusterTx.ThrusterInstance = SOUTH_THRUSTER_INSTANCE; // :4;
-
-      Outputs.SouthThrusterTx.Direction = NO_DIRECTION; // :2
-      Outputs.SouthThrusterTx.Retract = NO_ACTION; // :2, unused
-      Outputs.SouthThrusterTx.ReservedB = 0; // :6, all 0s
-      Outputs.SouthThrusterTx.ReservedC = 0; // :24, all 0s
-
-      Outputs.NorthThrusterTx = Outputs.SouthThrusterTx;
-      Outputs.NorthThrusterTx.ThrusterInstance = NORTH_THRUSTER_INSTANCE; // :4;
-
-      // Logic to scan for Merillat boathouse control behavior
-      if (Remote_IsRequestingOpen.Read()) {
-        // switch to OPEN state machine
-        eState = esOpening;
-        g_pDoorOpen->_Clear();
-      }
-      else if (Remote_IsRequestingClose.Read()) {
-        // switch to CLOSE state machine
-        eState = esOpening;
-      }
-      break;
-    case esOpening:
-//      DoorControlOpen();
-      break;
-    case esClosing:
-      // sequence to close
-      Outputs.South_Winter_Lock_Open = lr_Latch_Request;
-      break;
-  }
 }
 
 
@@ -200,8 +154,6 @@ void setup()
 
   FlexiTimer2::set(1, 0.0004, CanPoller); // Every 0.4 ms (400us)
   FlexiTimer2::start();
-
-  delayUntil = millis(); // set to 'now'
 }
 
 
@@ -247,9 +199,6 @@ void loop()
     Serial.println((0.001)*CanRXBuff[Tail].Time, 3);
   }
 #else
-  if (millis() < delayUntil)
-    return;
-
   // Show communications status
   static CFwTimer GUITimer;
   static bool LastComm = true;
@@ -264,7 +213,14 @@ void loop()
   if (!HaveComm) {
     static bool lastToggle = true;
     if (GUITimer.IsTimeout()) {
+      static int mX = 0;
+      static int mY = 0;
       lastToggle = !lastToggle;
+#define MISSING "MISSING COMMS"
+      static int mlen = strlen(MISSING);
+      myGLCD.setColor(BLACK);
+      myGLCD.setBackColor(BLACK);
+      myGLCD.print(MISSING,mX,mY);
       if (lastToggle) {
         myGLCD.setColor(RED);
         myGLCD.setBackColor(GREEN);
@@ -273,8 +229,12 @@ void loop()
         myGLCD.setColor(GREEN);
         myGLCD.setBackColor(RED);
       }
-      myGLCD.print("MISSING COMMS",(MAX_X-(myGLCD.getFontWidth()*12))/2, myGLCD.getFontHeight()*3);
-      GUITimer.IncrementTimer(250);
+      mX += myGLCD.getFontWidth()*2;
+      mX = mX % (MAX_X-myGLCD.getFontWidth()*mlen);
+      mY += myGLCD.getFontHeight();
+      mY = mY % (MAX_Y-myGLCD.getFontHeight());
+      myGLCD.print(MISSING,mX,mY);
+      GUITimer.IncrementTimer(750);
     }
   }
   else { // HaveComm, see about updating any changed elements
@@ -396,19 +356,19 @@ void loop()
       INT32S X,Y;
       bool LastState;
       BitObject *Source;
-    } DI_display[] = {
+    } DI_display[] = { // Digital Input
       // Requests coming from remote control:
-      {"Open", MAX_X/2-myGLCD.getFontWidth()*2,    myGLCD.getFontHeight()*2,        true,&Remote_IsRequestingOpen},
-      {"Close",MAX_X/2-(myGLCD.getFontWidth()*5)/2,myGLCD.getFontHeight()*3,        true,&Remote_IsRequestingClose},
+      {"Request Open", (MAX_X-myGLCD.getFontWidth()*12)/2,myGLCD.getFontHeight()*4, true,&Remote_IsRequestingOpen},
+      {"Request Close",(MAX_X-myGLCD.getFontWidth()*13)/2,myGLCD.getFontHeight()*5, true,&Remote_IsRequestingClose},
       // south latch
       {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
-      {"L",    2,                                  MAX_Y/3+myGLCD.getFontHeight(),  true,&South_Winter_Lock_Open_IsLatched},
+      {"L",    2,                                  MAX_Y/3+myGLCD.getFontHeight()*3,true,&South_Winter_Lock_Open_IsLatched},
       //  north latch
       {"U",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3,                         true,&North_Winter_Lock_Open_IsUnlatched},
-      {"L",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3+myGLCD.getFontHeight(),  true,&North_Winter_Lock_Open_IsLatched},
+      {"L",    MAX_X-1-myGLCD.getFontWidth(),      MAX_Y/3+myGLCD.getFontHeight()*3,true,&North_Winter_Lock_Open_IsLatched},
       // winter/center latch
-      {"U",    MAX_X/2-myGLCD.getFontWidth(),      MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsUnlatched},
-      {"L",    MAX_X/2,                            MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsLatched}
+      {"U",    MAX_X/2-myGLCD.getFontWidth()*2,    MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsUnlatched},
+      {"L",    MAX_X/2+myGLCD.getFontWidth()*2,    MAX_Y-5*myGLCD.getFontHeight()/2,true,&Winter_Lock_Closed_IsLatched}
     };
 
     // include display of digital inputs being active (letter(s) with background green)
@@ -429,6 +389,65 @@ void loop()
         DI_display[z].LastState = current; // update, wait until a change to do again
         BUMP_GUI_TIMER;
       }
+    }
+
+    static struct {
+      char *Text; // depending upon value of Source->Read(), which character will be displayed
+      INT32S X,Y;
+      byte LastState;
+      BitObject *Source;
+    } BO_output[] = { // Bit Object outputs
+      {" <>X", MAX_X/2,MAX_Y-5*myGLCD.getFontHeight()/2,-1,&Center_Winter_Latch},
+      {" ^VX",       2,MAX_Y/3+(myGLCD.getFontHeight()*3)/2,-1,&South_Winter_Latch},
+      {" ^VX",MAX_X-1-myGLCD.getFontWidth(),MAX_Y/3+(myGLCD.getFontHeight()*3)/2,-1,&North_Winter_Latch},
+      {" <>X",myGLCD.getFontWidth()*5,MAX_Y-8*myGLCD.getFontHeight()/2,-1,&Upper_South_Door},
+      {" ><X",MAX_X-myGLCD.getFontWidth()*5,MAX_Y-8*myGLCD.getFontHeight()/2,-1,&Upper_North_Door}
+    };
+    for (int z=0; z<sizeof(BO_output)/sizeof(BO_output[0]); z++) {
+      INT8U current = BO_output[z].Source->Read();
+      if (PaintStatics ||
+          BO_output[z].LastState != current) {
+        myGLCD.setColor(YELLOW);
+        myGLCD.setBackColor(BLACK);
+        char Str[2];
+        sprintf(Str,"%c",BO_output[z].Text[current]);
+        myGLCD.print(Str, BO_output[z].X, BO_output[z].Y);
+        BO_output[z].LastState = current; // update, wait until a change to do again
+        BUMP_GUI_TIMER;
+      }
+    }
+
+    // paints the text of the current state (and previous state, if in Error)
+    // time remaining before error in current state is also displayed
+    INT16S current = g_pDoorStates->GetCurrentState();
+    static INT16S LastState = -1;
+    if (PaintStatics ||
+        LastState != current) {
+      myGLCD.setColor(YELLOW);
+      myGLCD.setBackColor(BLACK);
+      char state[40];
+      sprintf(state,"%-30s",g_pDoorStates->GetCurrentStateName());
+      state[30] = 0; // truncate
+      myGLCD.print(state,myGLCD.getFontWidth()*8,myGLCD.getFontHeight());
+      LastState = current;
+      if (current == DoorStates::eST_Error)
+        sprintf(state,"%-30s",g_pDoorStates->GetPreviousStateName());
+      else
+        sprintf(state,"%-30s"," ");
+      myGLCD.print(state,myGLCD.getFontWidth()*8,myGLCD.getFontHeight()*2);
+      BUMP_GUI_TIMER;
+    }
+    if (!Cleared) {
+      // print the time as long as something else is updating
+      char digits[20];
+      long ct = g_pDoorStates->CurrentTime();
+      if (ct == INFINITE)
+        sprintf(digits,"   -   ");
+      else
+        sprintf(digits,"%7ld",ct);
+      myGLCD.setColor(YELLOW);
+      myGLCD.setBackColor(BLACK);
+      myGLCD.print(digits,RIGHT,myGLCD.getFontHeight()*2);
     }
 
     if (PaintStatics) {
@@ -452,8 +471,6 @@ void loop()
     else if (!GUITimer.IsTimeout())
       Cleared = false; // latch reset
   } // HaveComm
-
-  delayUntil += 130; // Increment timer relative, steady moving doors
 #endif
 }
 

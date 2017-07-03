@@ -146,14 +146,7 @@ struct InputType {
 enum LatchRequestType {lr_No_Request, lr_Unlatch_Request, lr_Latch_Request};
 
 struct OutputType {
-  union {
-    INT8U SouthDoorDIO_Tx;
-    struct {
-      INT8U South_Winter_Lock_Open:2; // LSBits
-      INT8U Winter_Lock_Closed:2;
-      INT8U UNUSED_SouthDoorDIO_Tx:4;
-    }; // leave anonymous
-  };
+  INT8U SouthDoorDIO_Tx; // 4 In, 4 Out
 #define SOUTHDOOR_OUTPUT_MASK 0x0f
 
   // PPC needs a heartbeat of PGN65280CanFrame every 100ms (300ms timeout)
@@ -162,23 +155,10 @@ struct OutputType {
     struct PGN65280CanFrame SouthThrusterTx;
   };
 
-  union {
-    INT8U SouthHydraulic_Tx;
-    struct {
-      INT8U Upper_South_Door:2;         // LSBits
-      INT8U UNUSED_SouthHydraulic_Tx:6;
-    };
-  };
+  INT8U SouthHydraulic_Tx;
 #define SOUTHHYDRAULIC_OUTPUT_MASK 0x03
 
-  union {
-    INT8U NorthDoorDIO_Tx;
-    struct {
-      INT8U North_Winter_Lock_Open:2;         // LSBits
-      INT8U USED_AS_INPUTS_NorthDoorDIO_Tx:4;
-      INT8U UNUSED_NorthDoorDIO_Tx;
-    };
-  };
+  INT8U NorthDoorDIO_Tx;
 #define NORTHDOOR_OUTPUT_MASK 0x03
 
   union {
@@ -186,14 +166,7 @@ struct OutputType {
     struct PGN65280CanFrame NorthThrusterTx;
   };
 
-  union {
-    INT8U NorthHydraulic_Tx;
-    struct {
-      INT8U Upper_North_Door:2;                 // LSBits
-      INT8U USED_AS_INPUTS_NorthHydraulic_Tx:2;
-      INT8U UNUSED_NorthHydraulic_Tx:4;
-    };
-  };
+  INT8U NorthHydraulic_Tx;
 #define NORTHHYDRAULIC_OUTPUT_MASK 0x03
 };
 
@@ -203,6 +176,7 @@ struct myEEType {
     int Min, Max;
     bool Valid;
   } SouthDoor, NorthDoor;
+  int CheckSum;
 };
 
 extern myEEType myEE;
@@ -326,4 +300,49 @@ extern
                                          (&Inputs.NorthHydraulic_Rx,3)
 #endif
                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Center_Winter_Latch
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.SouthDoorDIO_Tx,2,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject South_Winter_Latch
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.SouthDoorDIO_Tx,0,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Upper_South_Door
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.SouthHydraulic_Tx,0,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject North_Winter_Latch
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.NorthDoorDIO_Tx,0,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Upper_North_Door
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.NorthHydraulic_Tx,0,2)
+#endif
+                                                                       ;
 
