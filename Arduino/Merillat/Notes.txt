@@ -1,26 +1,34 @@
-As of 06/28/2017, need to:
-- Actual state sequence machine for controlling door logic
-  - started, using StateMachine.h/cpp
+As of 07/02/2017, need to:
 - Alter RxTest software on Uno to respond, making a simulator
   when a jumper or input is set (so no pgm change needed to just log)
+- port speed improvements back to RxTest software so we don't lose messages
+- CAN module configured to fail off upon lack of comm ???
 - GUI:
-  - represent outputs
   - activate Touch functions:
-    - 'screen saver' mode -- touch to wake
+    - touch to wake from 'screen saver' mode
     - touch an Open/Close input request to start sequence?
+    - when in Error mode, touch will have list of all nodes and which are OK vs Not
+- would be nice:
+  - after an open/close cycle, display the time remaining of each state sequenced thru.
+    allows to see how close to 'failing' each state is (don't make it too tight)
 
 Done:
 - Have a data logger for when tracing thruster activity
-  - currently boots at 500kBaud
+  - currently boots at 250kBaud
   - outputs data in CANKing format (thanks Pete!)
   - can request baud rate change, pause/resume (thanks Pete!)
 - Fixed consistent timing of CAN message by using 0.4ms FlexiTimer2 to
   constantly check inbound and outbound queues.  Test with professional
   CAN hardware showed shortest message ~0.26ms, but typically 0.44ms+,
   leading to the selection of 0.4ms timer configuration.
-- Created CAN union/structures for Thruster Tx/Rx messages
+- Thruster Tx/Rx accessed via BitObjects, which allow fields too
+- Actual state sequence machine for controlling door logic
+  - roughed in, using StateMachine.h/cpp
 - Confirmed Thruster TX byte order was as expected on the CANBus
 - GUI:
   - Appears to work with Seeed CAN module as long as using FlexiTimer2
-  - Most inputs are represented (green background on text for Active inputs)
+  - All CAN inputs are represented (green background on text for Active inputs)
+  - represent outputs with symbols
   - 'screen saver' is nothing but a black screen, to prevent burn-in
+  - Shows current state and standard timer used in that state showing
+    when a fault will be generated if the correct inputs aren't seen

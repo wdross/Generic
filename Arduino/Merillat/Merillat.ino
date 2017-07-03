@@ -1,8 +1,11 @@
 #include <EEPROM.h>
 #include <FlexiTimer2.h>
 
+#include "array.h"
+
 #include "CanPoller.h"
 #include "IODefs.h"
+#include "DoorStates.h" // a StateMachine
 
 // get rid of "deprecated conversion from string constant to 'char*'" messages
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -150,6 +153,11 @@ void setup()
   CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx, 0);
   CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NORTHHYDRAULIC_OUTPUT_MASK);
 
+  // Initialize our state machines
+  for (int iCount = 0; iCount < lStateMachines.size(); iCount++) {
+    lStateMachines[iCount]->Initialize();
+  }
+
   CanPollDisplay(3); // show everything we've configured
 
   FlexiTimer2::set(1, 0.0004, CanPoller); // Every 0.4 ms (400us)
@@ -175,6 +183,12 @@ void loop()
   }
 
   DoorControl();
+#if !defined(INCREMENTING_OUTPUTS)
+  // Execute all the state machines so that they can process timeout values, etc.
+  for (int iCount = 0; iCount < lStateMachines.size(); iCount++) {
+    lStateMachines[iCount]->Execute();
+  }
+#endif
 
 
 #ifdef DO_LOGGING
