@@ -195,6 +195,11 @@ void loop()
   if (Head != Tail) {
     // not caught up, print out the next message we have
     Tail = (Tail + 1) % NUM_BUFFS;
+    if (Overflow) {
+      Serial.print("Overflow ");
+      Serial.println(Overflow);
+      Overflow = 0;
+    }
 
     Serial.print(" 0    ");
     print_hex(CanRXBuff[Tail].COBID, 32);

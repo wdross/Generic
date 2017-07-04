@@ -13,52 +13,6 @@ CanRxType CanInBuffers[NUM_IN_BUFFERS];
 CanTxType CanOutBuffers[NUM_OUT_BUFFERS];
 MCP_CAN CAN(SPI_CS_PIN);    // Set CS pin
 
-
-#ifdef DO_LOGGING
-volatile int Head = 0; // updated in ISR
-int Tail = 0;
-volatile CanRXType CanRXBuff[NUM_BUFFS];
-void AddToDisplayBuffer(INT32U id, INT8U len, INT8U *buf)
-{
-  int Next = (Head + 1) % NUM_BUFFS;
-  if (Next != Tail) {
-    CanRXBuff[Next].COBID = id; // MSBit set if isExtendedFrame()
-    CanRXBuff[Next].Length = len;
-    CanRXBuff[Next].Time = millis();
-    for (int i=0; i<len; i++)
-      CanRXBuff[Next].Message[i] = buf[i];
-    Head = Next;
-  }
-  else
-    Serial.println("Overflow");
-} // AddToDisplayBuffer
-
-// v: value to print
-// num_places: number of bits we want to display
-void print_hex(long int v, int num_places)
-{
-  int mask=0, n, num_nibbles, digit;
-
-  for (n=1; n<=num_places; n++)
-  {
-    mask = (mask << 1) | 0x0001;
-  }
-  v = v & mask; // truncate v to specified number of places
-
-  num_nibbles = (num_places+3) / 4;
-  if ((num_places % 4) != 0)
-  {
-    ++num_nibbles;
-  }
-
-  do
-  {
-    digit = ((v >> (num_nibbles-1) * 4)) & 0x0f;
-    Serial.print(digit, HEX);
-  } while(--num_nibbles);
-} // print_hex
-#endif // DO_LOGGING
-
 void CanPollerInit()
 {
   // set up our arrays
