@@ -5,6 +5,7 @@
 */
 #include "CanPoller.h"
 #include "IODefs.h"
+#include "CanOpen.h"
 
 long int Fault=0;
 long int OK=0;
@@ -22,7 +23,7 @@ void CanPollerInit()
   for (int j=0; j<NUM_IN_BUFFERS; j++) {
     CanInBuffers[j].Can.COBID = 0; // not used
   }
-}
+} // CanPollerInit
 
 // Set up &buf to receive len bytes of data from COBID seen on CAN-BUS
 void CanPollSetRx(INT32U COBID, char len, INT8U *buf, voidFuncPtr userFN)
@@ -38,7 +39,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf, voidFuncPtr userFN)
       break; // we're done
     }
   }
-}
+} // CanPollSetRx
 
 // set up len bytes at &buf to be sent as a PDO with given COBID
 void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
@@ -57,8 +58,74 @@ void CanPollSetTx(INT32U COBID, char len, INT8U *buf)
   if (j < NUM_OUT_BUFFERS) {
   }
   else
-    Serial.println("Attempt to set up more TX buffers than allowed");
-}
+    Serial.println("Attempt to set up more TX buffers than space allows");
+} // CanPollSetTx
+
+// This is being called upon a hardware timer every 0.4ms thru use of the FlexiTimer2 class.
+// The time value was selected based upon some sample data taken from 7 ESD modules connected
+// and responding in our needed fashion, and seeing the shortest aparent message was a single
+// 0.26ms but is more typically 0.44-0.52ms per shortest arrival message.
+// It services both in and outbound messages, so MUST BE EFFICIENT!!
+void CanPoller()
+{
+  // did an experiment which indicates there is no reentry risk here --
+  // it appears the interrupts stack and ends up with back-to-back calls
+  // should things run behind.
+  static INT16U EntryCount=0;
+  EntryCount++;
+
+  int j;
+  // let's receive all messages into their registered buffer
+  while (CAN_MSGAVAIL == CAN.checkReceive()) { // while data present
+    INT8U len;
+    INT8U Msg[8];
+    CAN.readMsgBuf(&len, Msg); // read data,  len: data length, buf: data buf
+    INT32U COBID = CAN.getCanId(); // valid after readMsgBuf()
+#ifdef DO_LOGGING
+    AddToDisplayBuffer(COBID,len,Msg);
+#endif
+    for (j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
+      if (COBID == CanInBuffers[j].Can.COBID) {
+        // found match, record time and save the bytes
+        CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
+        memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
+
+
+        // check if the pushbutton is pressed.
+        // if it is, the buttonState is HIGH, so we want to do our simulation:
+        if (//digitalRead(DOOR_SIMULATE_PIN) == LOW && // jumper/switch says to SIMULATE AND
+            CanInBuffers[j].RxFunction) {             // there is a function that will emulate against this message
+          CanInBuffers[j].RxFunction(); // invoke function
+        }
+        break; // skip out of the loop
+      }
+    }
+  }
+
+  // The rest of this routine doesn't need to run at nearly the same interval
+  // as checking for message arrivals, so we'll scale back how often the time-out and
+  // transmit checks are made.  If we keep at the same 0.4ms rate, and if we only run
+  // every few calls, then we'd check at 3.2ms intervals -- close enough!
+  if (EntryCount % 8 != 0)
+    return;
+
+  // see if it is time to send any of our messages at their interval
+  for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
+    if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
+      INT32U COBID = CanOutBuffers[j].Can.COBID&COB_ID_MASK;
+      char ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+#ifdef DO_LOGGING
+      AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+#endif
+      CanOutBuffers[j].NextSendTime.SetTimer(INFINITE);
+      if (ret == CAN_OK)
+        OK++;
+      else
+        Fault++;
+      break; // skip out of for loop
+    }
+  }
+} // CanPoller
 
 void CanPollDisplay(int io)
 {
@@ -72,8 +139,8 @@ void CanPollDisplay(int io)
       if (CanOutBuffers[j].Can.COBID) {
         Serial.print("[");
         Serial.print(j);
-        Serial.print("]\t");
-        Serial.print((INT32U)(CanOutBuffers[j].Can.COBID&COB_ID_MASK),HEX);
+        Serial.print("]\t0x");
+        Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
         Serial.print("\t");
@@ -81,13 +148,17 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID?1:0);
         Serial.print("\t");
-        Serial.println(CanOutBuffers[j].NextSendTime.getEndTime());
+        Serial.print(CanOutBuffers[j].NextSendTime.getEndTime());
+        if (CanOutBuffers[j].Can.Length) {
+          Serial.print("\t[");
+          Serial.print(CanOutBuffers[j].Can.pMessage[0],HEX);
+          Serial.print("]");
+        }
+        Serial.println();
       }
     }
-  }
-
-  if ((io & 1) && (io & 2))
     Serial.println();
+  }
 
   if (io & 2) {
     Serial.println("Input buffers defined:");
@@ -96,16 +167,27 @@ void CanPollDisplay(int io)
       if (CanInBuffers[j].Can.COBID) {
         Serial.print("[");
         Serial.print(j);
-        Serial.print("]\t");
-        Serial.print(CanInBuffers[j].Can.COBID,HEX);
+        Serial.print("]\t0x");
+        Serial.print(CanInBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanInBuffers[j].Can.Length);
         Serial.print("\t");
         Serial.print((long)CanInBuffers[j].Can.pMessage);
         Serial.print("\t");
-        Serial.println(CanInBuffers[j].LastRxTime.getEndTime());
+        Serial.print(CanInBuffers[j].LastRxTime.getEndTime());
+        if (CanInBuffers[j].Can.Length) {
+          Serial.print("\t[");
+          for (int k=0; k<CanInBuffers[j].Can.Length; k++) {
+            Serial.print(CanInBuffers[j].Can.pMessage[0],HEX);
+            if (k<CanInBuffers[j].Can.Length-1)
+              Serial.print(" ");
+          }
+          Serial.print("]");
+        }
+        Serial.println();
       }
     }
+    Serial.println();
   }
-}
+} // CanPollDisplay
 
