@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<!-- saved from url=(0041)http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/ -->
+<html class=" js flexbox flexboxlegacy canvas canvastext webgl no-touch geolocation postmessage websqldatabase indexeddb hashchange history draganddrop websockets rgba hsla multiplebgs backgroundsize borderimage borderradius boxshadow textshadow opacity cssanimations csscolumns cssgradients cssreflections csstransforms csstransforms3d csstransitions fontface generatedcontent video audio localstorage sessionstorage webworkers applicationcache svg inlinesvg smil svgclippaths" lang="en"><!--<![endif]--><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:site" content="@seeedstudio">
+  <meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1">
+  <meta property="og:title" content="CAN-BUS Shield V1.2 - Seeed Wiki">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/">
+  
+  <meta name="author" content="Seeedstudio Team">
+  
+  <title>CAN-BUS Shield V1.2 - Seeed Wiki</title>
+
+  <link rel="shortcut icon" href="http://wiki.seeed.cc/img/favicon.ico">
+  
+  <link href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/css" rel="stylesheet" type="text/css">
+
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/theme.css" type="text/css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/theme_extra.css" type="text/css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/highlight.css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/highlight-fix.css" type="text/css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/tomorrow-night-eighties.min.css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/font-awesome.min.css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/main.css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/iconfont.css">
+  <link rel="stylesheet" href="./CAN-BUS Shield V1.2 - Seeed Wiki_files/wiki.css">
+
+  <script src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/jquery-2.1.1.min.js.download"></script>
+  <script src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/modernizr-2.8.3.min.js.download"></script>
+  <script src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/highlight.pack.js.download"></script>
+  <script src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/theme.js.download"></script>
+  <script src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/jquery.cookie.min.js.download"></script> 
+
+  <script type="text/javascript">
+   $(function(){
+     var _width = $('body').width();
+     if(_width < 768){
+       var html = document.documentElement;
+       window.rem = html.getBoundingClientRect().width / 18.75 ;
+       html.style.fontSize = window.rem + 'px';
+     }
+   })
+  </script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document" style="overflow: hidden;">
+
+  <div class="wike-content">
+      
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="main">
+            <div class="section">
+              
+                <h1>CAN-BUS Shield V1.2</h1>
+                <h2 id="introduction">Introduction<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#introduction" title="Permanent link"></a></h2>
+   
+                <p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/Can_bus_shield_all.jpg"></p>
+<p><strong>CAN-BUS</strong> is a common industrial bus because of its long travel distance, medium communication speed and high reliability. It is commonly found on modern machine tools, such as an automotive diagnostic bus.</p>
+<p>This CAN-BUS Shield adopts <strong>MCP2515</strong> CAN Bus controller with SPI interface and <strong>MCP2551</strong> CAN transceiver to give your Arduino/Seeeduino CAN-BUS capability. With an <strong>OBD-II</strong> converter cable added on and the OBD-II library imported, you are ready to build an onboard diagnostic device or data logger.</p>
+<p><strong>Version</strong></p>
+<p>This document applies to the following version of products:</p>
+<table class="docutils">
+<thead>
+<tr>
+<th>Version</th>
+<th>Released Date</th>
+<th>How to Buy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAN BUS Shield V1.0</td>
+<td>Oct 14, 2012</td>
+<td><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/EOL.png"></td>
+</tr>
+<tr>
+<td>CAN BUS Shield V1.1</td>
+<td>Aug 10, 2013</td>
+<td><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/EOL.png"></td>
+</tr>
+<tr>
+<td>CAN BUS Shield V1.2</td>
+<td>Jan 5, 2015</td>
+<td><a href="http://www.seeedstudio.com/CAN-BUS-Shield-V1.2-p-2256.html"><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/get_one_now_small.png"></a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>What’s new in CAN BUS Shield V1.2</strong></p>
+<ul>
+<li>Pads on the backside of PCBA</li>
+<li>Change terminal resistor to 120 Ohm</li>
+</ul>
+<p><strong>What if I want to connect this shield to my car</strong></p>
+<p>If you want to read data or control your car, there’s an OBD&gt;DB9 cable available for you, <a href="https://www.seeedstudio.com/DB9-to-OBD2-Cable-With-Switch-p-2872.html">this cable</a> make easier to connect to OBD-connector and DB9-connector. This cable will also work with anything that has a OBD-connector. Add a power switch makes such a satisfying click.</p>
+<p><a href="https://www.seeedstudio.com/DB9-to-OBD2-Cable-With-Switch-p-2872.html"><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/obd_cable.jpg"></a></p>
+<p><strong>USB-CAN Analyzer</strong></p>
+<p>If you want a CAN Bus Analyzer to debug your CAN Bus, this <a href="https://www.seeedstudio.com/USB-CAN-Analyzer-p-2888.html">USB-CAN Analyzer</a> is recommended. </p>
+<p><a href="https://www.seeedstudio.com/USB-CAN-Analyzer-p-2888.html"><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/usb_can.jpg"></a></p>
+<h2 id="features">Features<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#features" title="Permanent link"></a></h2>
+<hr>
+<ul>
+<li>Implements CAN V2.0B speed up to <strong>1 Mb/s</strong></li>
+<li>SPI Interface speed up to <strong>10 MHz</strong></li>
+<li>Standard (<strong>11 bit</strong>) and extended (<strong>29 bit</strong>) data and remote frames</li>
+<li>Two receive buffers with prioritized message storage</li>
+<li>Industrial standard DB-9 connector</li>
+<li>LED indicators</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>CAN BUS Shield Work well with Arduino UNO (ATmega328), Arduino Mega (ATmega1280/2560) as well as Arduino Leonardo (ATmega32U4).</p>
+</div>
+<h2 id="hardware-overview">Hardware Overview<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#hardware-overview" title="Permanent link"></a></h2>
+<hr>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/hardware_overview_1.png"></p>
+<ol>
+<li><strong>DB9 Interface</strong> - to connect to OBDII Interface via a DBG-OBD Cable.</li>
+<li><strong>V_OBD</strong> - It gets power from OBDII Interface (from DB9)</li>
+<li><strong>Led Indicator</strong>:<ul>
+<li><strong>PWR</strong>: power</li>
+<li><strong>TX</strong>: blink when the data is sending</li>
+<li><strong>RX</strong>: blink when there’s data receiving</li>
+<li><strong>INT</strong>: data interrupt</li>
+</ul>
+</li>
+<li><strong>Terminal</strong> - CAN_H and CAN_L</li>
+<li><strong>Arduino UNO pin out</strong></li>
+<li><strong>Serial Grove connector</strong></li>
+<li><strong>I2C Grove connector</strong></li>
+<li><strong>ICSP pins</strong></li>
+<li><strong>IC</strong> - MCP2551, a high-speed CAN transceiver (<a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/Mcp2551.pdf">datasheet</a>)</li>
+<li><strong>IC</strong> - MCP2515, stand-alone CAN controller with SPI interface (<a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/MCP2515.pdf">datasheet</a>)</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>When you use more than two CAN Bus Shield in one net, you should take the impedance into consideration.
+You should either cut P1 in the PCB with a knife, or just remove R3 on the PCB.</p>
+</div>
+<p><strong>Pin map</strong></p>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/PINMAP.png"></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The FREE pin is available for the other usages.</p>
+</div>
+<p><strong>DB9&amp;OBDii Interface</strong></p>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/OBD.png"></p>
+<p><strong>CS pin</strong></p>
+<p>SPI_CS pin of V1.2 is connected to <strong>D9</strong> by default. If you want to change to <strong>D10</strong>, please follow below instructions.</p>
+<ul>
+<li>Step1: Take a look at the backside of the PCBA, you will find a pad named CS.</li>
+</ul>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/hardware_overview_pins_setting.png"></p>
+<ul>
+<li>Step2: Cut the wire between pad9 and the middle pad.</li>
+</ul>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/cut this wire with box cutter.png"></p>
+<ul>
+<li>Step3:Solder the middle pad and pad 10.</li>
+</ul>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/sodder the middle pad and pad 10.png"></p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Be careful with the box cutter, it’s easy to hurt yourself or the PCBA.</p>
+</div>
+<p><strong>SPI pins</strong></p>
+<p>The SPI pins (SCK, MISO, MOSI) are routed to the ICSP pins by default. But for some boards, the SPI pins are located at D11~D13. if this happens, you need make some change to the PCBA. Take a look at the backside of the PCBA, there’re three pads, MOSI, MISO and SCK, they are connected to A by default. You can change them to B if needed.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For Arduino UNO, Arduino Mega, Arduino Leonardo and any others AVR based Arduino boards, it works well by default setting.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Be careful when you are going to change SPI pins, it’s easy to hurt yourself or the PCBA.</p>
+</div>
+<h2 id="getting-started">Getting Started<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#getting-started" title="Permanent link"></a></h2>
+<hr>
+<p>Here’s a simple example to show you how CAN-BUS Shield works. In this example we need 2 pieces of CAN-BUS Shields as well as Arduino or Seeeduino.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This example is built under <a href="https://www.arduino.cc/download_handler.php?f=/arduino-1.6.9-windows.zip">Arduino IDE version 1.6.9</a>.</p>
+</div>
+<p><strong>STEP1: What do we need</strong></p>
+<table class="docutils">
+<thead>
+<tr>
+<th>Name</th>
+<th>Function</th>
+<th>Qty</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAN-BUS Shield</td>
+<td>CAN Bus communication</td>
+<td>2</td>
+<td><a href="http://www.seeedstudio.com/depot/CANBUS-Shield-V12-p-2256.html">link</a></td>
+</tr>
+<tr>
+<td>Seeeduino V4.2</td>
+<td>Controller</td>
+<td>2</td>
+<td><a href="http://www.seeedstudio.com/item_detail.html?p_id=2517">link</a></td>
+</tr>
+<tr>
+<td>Jumper Wire</td>
+<td>connection</td>
+<td>2</td>
+<td><a href="http://www.seeedstudio.com/item_detail.html?p_id=234">link</a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>STEP2: Hardware Connection</strong></p>
+<p>Insert each CAN-BUS Shield into Seeeduino V4.2, and connect the 2 CAN-BUS Shield together via 2 jumper wires. Shown as below images.</p>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/connection.png"></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>CAN_H to CAN_H, CAN_L to CAN_L</p>
+</div>
+<p><strong>STEP3: Software</strong></p>
+<p>Please follow <a href="http://wiki.seeed.cc/How_to_install_Arduino_Library/">how to install an arduino library</a> procedures to install CAN BUS shield library.</p>
+<p>Click on below button to download the library.</p>
+<p><a href="https://github.com/Seeed-Studio/CAN_BUS_Shield"><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/download_library.png"></a></p>
+<p>Install the library to your Arduino IDE when it is downloaded.</p>
+<p>One of the node (a node means Seeeduino + CAN_BUS Shield) acts as master, the other acts as slaver. The master will send data to slaver constantly.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Each node can act as master before the code being uploaded.</p>
+</div>
+<p>Open the <strong>send</strong> example (<strong>File &gt; Examples &gt; CAN_BUS_Shield-master &gt; send</strong>) and upload to the <strong>master</strong>.
+<img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/send example.png">
+Open the <strong>receive_check</strong> example (<strong>File &gt; Examples &gt; CAN_BUS_Shield-master &gt; receive_check</strong>) and upload to the <strong>slaver</strong>.
+<img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/receive check example.png"></p>
+<p><strong>STEP4: View Result</strong></p>
+<p>Open the Serial Monitor of Arduino IDE(<strong>slaver</strong>), you will get the data sent from the master.</p>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/serial_monitor.png"></p>
+<h2 id="apis">APIs<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#apis" title="Permanent link"></a></h2>
+<hr>
+<h3 id="1-set-the-baud-rate">1. Set the Baud rate<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#1-set-the-baud-rate" title="Permanent link"></a></h3>
+<p>This function is used to initialize the baud rate of the CAN Bus system.</p>
+<p>The available baud rates are listed as follows:</p>
+<pre><code class="hljs stylus"><span class="hljs-hexcolor">#def</span>ine CAN_5KBPS    <span class="hljs-number">1</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_10KBPS   <span class="hljs-number">2</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_20KBPS   <span class="hljs-number">3</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_25KBPS   <span class="hljs-number">4</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_31K25BPS <span class="hljs-number">5</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_33KBPS   <span class="hljs-number">6</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_40KBPS   <span class="hljs-number">7</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_50KBPS   <span class="hljs-number">8</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_80KBPS   <span class="hljs-number">9</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_83K3BPS  <span class="hljs-number">10</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_95KBPS   <span class="hljs-number">11</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_100KBPS  <span class="hljs-number">12</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_125KBPS  <span class="hljs-number">13</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_200KBPS  <span class="hljs-number">14</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_250KBPS  <span class="hljs-number">15</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_500KBPS  <span class="hljs-number">16</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_666kbps  <span class="hljs-number">17</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_1000KBPS <span class="hljs-number">18</span>
+</code></pre>
+<h3 id="2-set-receive-mask-and-filter">2. Set Receive Mask and Filter<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#2-set-receive-mask-and-filter" title="Permanent link"></a></h3>
+<p>There are <strong>2</strong> receive mask registers and <strong>5</strong> filter registers on the controller chip that guarantee you getting data from the target device. They are useful especially in a large network  consisting of numerous nodes.</p>
+<p>We provide two functions for you to utilize these mask and filter registers. They are:</p>
+<p><strong>Mask:</strong></p>
+<pre><code class="hljs objectivec">init_Mask(<span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> num, <span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> ext, <span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> ulData);
+</code></pre>
+<p><strong>Filter:</strong></p>
+<pre><code class="hljs objectivec">init_Filt(<span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> num, <span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> ext, <span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> ulData);
+</code></pre>
+<ul>
+<li><strong>num</strong> represents which register to use. You can fill 0 or 1 for mask and 0 to 5 for filter.</li>
+<li><strong>ext</strong> represents the status of the frame. 0 means it’s a mask or filter for a standard frame. 1 means it’s for a extended frame.</li>
+<li><strong>ulData</strong> represents the content of the mask of filter.</li>
+</ul>
+<h3 id="3-check-receive">3. Check Receive<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#3-check-receive" title="Permanent link"></a></h3>
+<p>The MCP2515 can operate in either a polled mode, where the software checks for a received frame, or using additional pins to signal that a frame has been received or transmit completed.</p>
+<p>Use the following function to poll for received frames.</p>
+<pre><code class="hljs css"><span class="hljs-tag">INT8U</span> <span class="hljs-rule"><span class="hljs-attribute">MCP_CAN</span>:<span class="hljs-value">:<span class="hljs-function">checkReceive</span>(void)</span></span>;
+</code></pre>
+<p>The function will return 1 if a frame arrives, and 0 if nothing arrives.</p>
+<h3 id="4-get-can-id">4. Get CAN ID<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#4-get-can-id" title="Permanent link"></a></h3>
+<p>When some data arrive, you can use the following function to get the CAN ID of the “send” node.</p>
+<pre><code class="hljs stylus">INT32U MCP_CAN::<span class="hljs-function"><span class="hljs-title">getCanId</span><span class="hljs-params">(void)</span></span>
+</code></pre>
+<h3 id="5-send-data">5. Send Data<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#5-send-data" title="Permanent link"></a></h3>
+<pre><code class="hljs objectivec"><span class="hljs-built_in">CAN</span><span class="hljs-variable">.sendMsgBuf</span>(INT8U <span class="hljs-keyword">id</span>, INT8U ext, INT8U len, data_buf);
+</code></pre>
+<p>It is a function to send data onto the bus. In which:</p>
+<ul>
+<li><strong>id</strong> represents where the data comes from.</li>
+<li><strong>ext</strong> represents the status of the frame. ‘0’ means standard frame. ‘1’ means extended frame.</li>
+<li><strong>len</strong> represents the length of this frame.</li>
+<li><strong>data_buf</strong> is the content of this message.</li>
+</ul>
+<p>For example, In the ‘send’ example, we have:</p>
+<pre><code class="hljs objectivec"><span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> stmp[<span class="hljs-number">8</span>] = {<span class="hljs-number">0</span>, <span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>, <span class="hljs-number">4</span>, <span class="hljs-number">5</span>, <span class="hljs-number">6</span>, <span class="hljs-number">7</span>};
+<span class="hljs-built_in">CAN</span><span class="hljs-variable">.sendMsgBuf</span>(<span class="hljs-number">0x00</span>, <span class="hljs-number">0</span>, <span class="hljs-number">8</span>, stmp); <span class="hljs-comment">//send out the message 'stmp' to the bus and tell other devices this is a standard frame from 0x00.</span>
+</code></pre>
+<h3 id="6-receive-data">6. Receive Data<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#6-receive-data" title="Permanent link"></a></h3>
+<p>The following function is used to receive data on the ‘receive’ node:</p>
+<pre><code class="hljs objectivec"><span class="hljs-built_in">CAN</span><span class="hljs-variable">.readMsgBuf</span>(<span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> len, <span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">char</span> buf);
+</code></pre>
+<p>In conditions that masks and filters have been set. This function can only get frames that meet the requirements of masks and filters.</p>
+<ul>
+<li><strong>len</strong> represents the data length.</li>
+<li><strong>buf</strong> is where you store the data.</li>
+</ul>
+<h2 id="generate-a-new-baudrate">Generate a New BaudRate<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#generate-a-new-baudrate" title="Permanent link"></a></h2>
+<p>We had provided many frequently-used baud rates, as below:</p>
+<pre><code class="hljs stylus"><span class="hljs-hexcolor">#def</span>ine CAN_5KBPS    <span class="hljs-number">1</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_10KBPS   <span class="hljs-number">2</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_20KBPS   <span class="hljs-number">3</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_25KBPS   <span class="hljs-number">4</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_31KBPS   <span class="hljs-number">5</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_33KBPS   <span class="hljs-number">6</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_40KBPS   <span class="hljs-number">7</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_50KBPS   <span class="hljs-number">8</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_80KBPS   <span class="hljs-number">9</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_83KBPS   <span class="hljs-number">10</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_95KBPS   <span class="hljs-number">11</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_100KBPS  <span class="hljs-number">12</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_125KBPS  <span class="hljs-number">13</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_200KBPS  <span class="hljs-number">14</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_250KBPS  <span class="hljs-number">15</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_500KBPS  <span class="hljs-number">16</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_666KBPS  <span class="hljs-number">17</span>
+<span class="hljs-hexcolor">#def</span>ine CAN_1000KBPS <span class="hljs-number">18</span>
+</code></pre>
+<p>Yet you may still can’t find the rate you want. Here we provide a software to help you to calculate the baud rate you need.</p>
+<p>Click <a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/CAN_Baudrate_CalcV1.3.zip">here</a> to download the software, it’s in Chinese, but never mind, it’s easy to use.</p>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/CAN_BUS_Shield_SetBaud.jpg"></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This software supports Windows system only. If you can’t open it, please feel free to contact loovee@seeed.cc for support.</p>
+</div>
+<p>Open the software, what you need to do is to set the baud rate you want, and then do some simple setting, then click <strong>calculate</strong>.</p>
+<p>Then you will get some data, cfg1, cfg2 and cfg3.</p>
+<p>You need to add some code to the library.</p>
+<p>Open <strong>mcp_can_dfs.h</strong>, you need to add below code at about line 272:</p>
+<pre><code class="hljs stylus"><span class="hljs-hexcolor">#def</span>ine MCP_16MHz_xxxkBPS_CFG1 (cfg1)    <span class="hljs-comment">// xxx is the baud rate you need</span>
+<span class="hljs-hexcolor">#def</span>ine MCP_16MHz_xxxkBPS_CFG2 (cfg2)
+<span class="hljs-hexcolor">#def</span>ine MCP_16MHz_xxxkBPS_CFG3 (cfg2)
+</code></pre>
+<p>Then let’s go to about line 390, add below code:</p>
+<pre><code class="hljs stylus"><span class="hljs-hexcolor">#def</span>ine CAN_xxxKBPS NUM       <span class="hljs-comment">// xxx is the baudrate you need, and NUM is a number, you need to get a different from the other rates.</span>
+</code></pre>
+<p>Open <strong>mcp_can.cpp</strong>, goto the function <strong>mcp2515_configRate</strong>(at about line 190), then add below code:</p>
+<pre><code class="hljs gcode">case <span class="hljs-comment">(CAN_xxxKBPS)</span>:
+    cf<span class="hljs-keyword">g1</span> = MCP_<span class="hljs-number">16</span>MHz_xxxkBPS_CF<span class="hljs-keyword">G1</span>;
+    cf<span class="hljs-keyword">g2</span> = MCP_<span class="hljs-number">16</span>MHz_xxxkBPS_CF<span class="hljs-keyword">G2</span>;
+    cf<span class="hljs-keyword">g3</span> = MCP_<span class="hljs-number">16</span>MHz_xxxkBPS_CF<span class="hljs-keyword">G3</span>;
+    break;
+</code></pre>
+<p>Then you can use the baud rate you need. And please give me a pull request at github when you use a new rate, so I can add it to the library to help other guys.</p>
+<h2 id="projects">Projects<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#projects" title="Permanent link"></a></h2>
+<hr>
+<p>If you want to make some awesome projects with CAN-BUS shield, here are some projects for reference.</p>
+<h3 id="volkswagen-can-bus-gaming">Volkswagen CAN BUS Gaming<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#volkswagen-can-bus-gaming" title="Permanent link"></a></h3>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/project1.JPG"></p>
+<p>Ever wanted to play a car/truck simulator with a real dashboard on your PC? Me too! I’m trying to control a VW Polo 6R dashboard via CAN Bus with an Arduino Uno and a Seeed CAN Bus Shield. Inspired by Silas Parker. Thanks Sepp and Is0-Mick for their great support!</p>
+<p><a href="http://www.seeed.cc/project_detail.html?id=291"><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/Wiki_makeitnow_logo.png"></a></p>
+<h3 id="hack-your-vehicle-can-bus">Hack your vehicle CAN-BUS<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#hack-your-vehicle-can-bus" title="Permanent link"></a></h3>
+<p><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/project2.jpg"></p>
+<p>Modern Vehicles all come equipped with a CAN-BUS Controller Area Network, Instead of having a million wires running back and forth from various devices in your car to the battery, its making use of a more clever system.</p>
+<p>All electronic functions are connected to the TIPM, (Totally integrated Power Module), such as solenoids/relays to lock the doors or mini motors to wind the windows etc.</p>
+<p>From each node (IE Switch pod that controls your windows or electric door locks) it broadcasts a message across the CAN. When the TIPM detects a valid message it will react accordingly like, lock the doors, switch on lights and so on.</p>
+<p><a href="http://www.instructables.com/id/Hack-your-vehicle-CAN-BUS-with-Arduino-and-Seeed-C/"><img alt="" src="./CAN-BUS Shield V1.2 - Seeed Wiki_files/Wiki_makeitnow_logo.png"></a></p>
+<h2 id="faq">FAQ<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#faq" title="Permanent link"></a></h2>
+<hr>
+<p><strong>Q1: I can’t get data from other CAN device.</strong></p>
+<ul>
+<li>Check if the connection is right</li>
+<li>Check if the baud rate setting is right</li>
+</ul>
+<p><strong>Q2: The serial monitor print Init Fail.</strong></p>
+<ul>
+<li>Check if the CS pin setting is matched with the code. For CAN Bus Shield V1.1/1.2, CS pin is connected to D9, others are to D10.</li>
+</ul>
+<p><strong>Q3. Where can I find technical support if I have some other issues.</strong></p>
+<ul>
+<li>You can post a question to <a href="http://www.seeed.cc/discover.html?t=Arduino">Seeed Forum</a> or send an email to <strong>techsupport@seeed.cc</strong>.</li>
+</ul>
+<h2 id="resources">Resources<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#resources" title="Permanent link"></a></h2>
+<hr>
+<ul>
+<li><strong>【PDF】</strong><a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/CAN-BUS_Shield_v1.2.pdf">CAN-BUS Shield V1.2 Schmatics</a></li>
+<li><strong>【Eagle】</strong><a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/CAN-BUS_Shield_v1.2_sch_pcb.zip">Schematic of CAN-BUS Shield V1.2</a></li>
+<li><strong>【Library】</strong><a href="https://github.com/Seeed-Studio/CAN_BUS_Shield">Arduino Library for CAN-BUS Shield</a></li>
+<li><strong>【Datasheet】</strong><a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/MCP2515.pdf">MCP2515 datasheet</a></li>
+<li><strong>【Datasheet】</strong><a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/Mcp2551.pdf">MCP2551 datasheet</a></li>
+<li><strong>【Demo】</strong><a href="https://github.com/Seeed-Studio/CANBUS_SHIELD_OBD_RECIPLE">An OBD Demo</a></li>
+<li><strong>【Tool】</strong><a href="https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/CAN_Baudrate_CalcV1.3.zip">MCP2515 Baud Rate Tool</a></li>
+<li><strong>【Tool】</strong><a href="https://www.seeedstudio.com/USB-CAN-Analyzer-p-2888.html">USB-CAN Analyzer</a></li>
+<li><strong>【Cable】</strong><a href="https://www.seeedstudio.com/DB9-to-OBD2-Cable-With-Switch-p-2872.html">DB9 to OBD2 Cable</a></li>
+</ul>
+
+                <h2 id="help-us-make-it-better">Help us make it better<a class="headerlink" href="http://wiki.seeed.cc/CAN-BUS_Shield_V1.2/#help-us-make-it-better" title="Permanent link"></a></h2>
+<p> Welcome to the new documentation system of Seeed Studio. We have made a lot of progress comparing to the old wiki system and will continue to improve it to make it more user friendly and helpful. The improvement can't be done without your kindly feedback. If you have any suggestions or findings, you are most welcome to submit the amended version as our contributor via <a href="https://github.com/SeeedDocument/Seeed-WiKi">Github</a> or give us suggestions in the survey below, it would be more appreciated if you could leave your email so that we can reply to you. Happy Hacking!</p>
+
+              
+            </div>
+          </div>
+          
+        </div>
+
+      </div>
+
+    </section>
+
+  </div>
+
+
+
+
+
+
+<script>
+      $(function(){
+         var navItem = 'Platform' ;// 用户选择主菜单
+         
+         //接入返回顶部按钮
+         // backToTop(1000);
+         $('.wy-menu-vertical li.current').find('i').removeClass("fa-caret-right").addClass("fa-caret-down");
+         // 记录词条点击位置
+         $('.wy-menu-vertical .current').find('a').unbind('click').click(function(){
+           var scrollTop = $('.wy-nav-side').scrollTop();
+           if(scrollTop != 0 ){
+             $.cookie('wike_scroll', scrollTop, {
+               expires: 1,
+               path: "/"
+             });
+           }
+           $.cookie('wike_date', JSON.stringify({'navItem':navItem}), {
+               expires: 1,
+               path: "/"
+           });
+         });
+         if($.cookie('wike_date') != undefined){
+           var wike_date = JSON.parse($.cookie('wike_date'));
+           navItem = wike_date.navItem;
+         }
+         /**
+          * 折叠功能
+          */
+         $('.wy-menu-vertical').on('click', '.main-title', function() {
+            // 先隐藏所有一级菜单 
+            // $('.wy-menu-vertical .current').find('.subnav').each(function(){
+            //   $(this).find('li').hide();
+            // });
+            foldMenu($(this));
+         });
+         $('.wy-menu-vertical').on('click', '.js-manipulate', function() {
+           foldMenu($(this));
+         });
+
+
+         /**
+          * [foldMenu 折叠功能]
+          * @return {[type]} [description]
+          */
+         function foldMenu(ths){
+           var flag = $(ths).closest('.subnav').find('li').is(":hidden");
+            navItem = $(ths).attr('data-title');
+            if(flag) {
+              $(ths).closest('.subnav').find('li').show();
+              $(ths).closest('.subnav').find('ul').show();
+              $(ths).closest('.subnav').find('.js-manipulate i').removeClass('fa-plus').addClass('fa-minus');
+            } else {
+              $(ths).closest('.subnav').find('li').hide();
+              $(ths).closest('li').show();
+              $(ths).closest('.subnav').find('.js-manipulate i').removeClass('fa-minus').addClass('fa-plus');
+            }
+            // 首次进来要跳转
+            var scrollTop = $.cookie('wike_scroll');
+            if(scrollTop != 0 ){
+              $('.wy-nav-side').scrollTop(scrollTop);
+              $.cookie('wike_scroll',0);
+            }
+         }
+
+         // 默认展示 navItem
+         $('.wy-menu-vertical .main-title').each(function(){
+            if($(this).attr('data-title') == navItem) {
+              $(this).click();
+            }
+         })
+
+         /**
+           * [搜索事件]
+           */
+          $('.search-wrap').on('click', '.searchIocn', function() {
+             // 搜索咯
+             var s_input = $('.searchInput').val();
+             if(s_input != '' && s_input != null){
+               window.location.href = 'http://wiki.seeed.cc/search.html?q=' + s_input;
+             }
+          });
+          $('.search-wrap .searchInput').bind('keypress', function (event) {
+              if (event.keyCode == "13") {
+                   //需要处理的事情
+                  var s_input = $('.searchInput').val();
+                  if(s_input != '' && s_input != null){
+                     window.location.href = 'http://wiki.seeed.cc/search.html?q=' + s_input;
+                  }
+              }
+          });
+          // 隐藏
+          console.log($('.search-wrap').find('.search-close'))
+          $('.search-wrap').on('click', '.search-close', function() {
+             console.log('取消')
+             $('.search-wrap').hide();
+          });
+          // 隐藏
+          $('.search-wrap').on('click', '.cover', function() {
+             $('.search-wrap').hide();
+          })
+          $('.m_header').on('click', '.search', function() {
+             $('.search-wrap').fadeIn(300);
+          })
+
+      });
+     
+     /**
+      * 移动端事件 
+      */
+     $('.wy-body-for-nav').on('click', '.j-menu-nav', function() {
+       $('.j-menu-list').show();
+     });
+
+
+
+     /*
+      * 返回顶部
+      * @param {string} show_target, 滚动出现目标（可为空
+      * @param {string} to_top, 返回顶部按钮滚动速度
+      * @param {number} speed, 
+      */
+     function backToTop(speed) {
+
+       //添加html到文档里
+       var _top_ico = '<a href="#" class="back-to-top" title="Back to top"><i class="fa fa-angle-up"></i></a>';
+       $('#footer').after(_top_ico);
+
+       //    var s_width = $(window).width(),
+       //        base_width = 1200;
+       //    if(s_width > base_width) {
+       //        var fixed_right = parseInt((s_width-base_width)/2);
+       //        //console.log('右侧距离是：'+fixed_right);
+       //        $('.back-to-top').css('right',(fixed_right-100)+'px');
+       //    }
+       var $top = $('.back-to-top');
+       if ($top != "") {
+         $(window).scroll(function() {
+           if ($(this).scrollTop() != 0) {
+             $top.show();
+           } else {
+             $top.fadeOut(200);
+           }
+         });
+       }
+       $top.click(function() {
+         $("body,html").animate({
+           scrollTop: 0
+         }, speed);
+         return false;
+       });
+     }
+     
+    </script></body></html>
