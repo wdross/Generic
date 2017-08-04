@@ -5,6 +5,9 @@
 #include "BitObject.h"
 
 // This will define the I/O points for the Merillat boathouse door project
+// Intended to be multiply included, and once per project will include with
+// #define DEFINE_BITOBJECTS already declared, which will allocate the
+// required data elements to link against.
 
 // NodeIDs of CAN devices in the different boxes:
 // (New) South Door control box:
@@ -146,8 +149,8 @@ struct InputType {
 enum LatchRequestType {lr_No_Request, lr_Unlatch_Request, lr_Latch_Request};
 
 struct OutputType {
-  INT8U SouthDoorDIO_Tx; // 4 In, 4 Out
-#define SOUTHDOOR_OUTPUT_MASK 0x0f
+  INT8U SouthDoorDIO_Tx; // ID11: 5 Out
+#define SOUTHDOOR_OUTPUT_MASK 0x8f
 
   // PPC needs a heartbeat of PGN65280CanFrame every 100ms (300ms timeout)
   union {
@@ -156,10 +159,10 @@ struct OutputType {
   };
 
   INT8U SouthHydraulic_Tx;
-#define SOUTHHYDRAULIC_OUTPUT_MASK 0x03
+#define SOUTHHYDRAULIC_OUTPUT_MASK 0x83
 
   INT8U NorthDoorDIO_Tx;
-#define NORTHDOOR_OUTPUT_MASK 0x03
+#define NORTHDOOR_OUTPUT_MASK 0x83
 
   union {
     INT8U NorthThruster_Tx[8];
@@ -167,7 +170,7 @@ struct OutputType {
   };
 
   INT8U NorthHydraulic_Tx;
-#define NORTHHYDRAULIC_OUTPUT_MASK 0x03
+#define NORTHHYDRAULIC_OUTPUT_MASK 0x83
 };
 
 // Elements that should be stored in EEPROM over power downs:
@@ -322,9 +325,27 @@ extern
 #ifndef DEFINE_BITOBJECTS
 extern
 #endif
+       BitObject Activity_Panel1
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.SouthDoorDIO_Tx,7)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
        BitObject Upper_South_Door
 #ifdef DEFINE_BITOBJECTS
                                          (&Outputs.SouthHydraulic_Tx,0,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Activity_Panel2
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.SouthHydraulic_Tx,7)
 #endif
                                                                        ;
 
@@ -340,9 +361,27 @@ extern
 #ifndef DEFINE_BITOBJECTS
 extern
 #endif
+       BitObject Activity_Panel3
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.NorthDoorDIO_Tx,7)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
        BitObject Upper_North_Door
 #ifdef DEFINE_BITOBJECTS
                                          (&Outputs.NorthHydraulic_Tx,0,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Activity_Panel4
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.NorthHydraulic_Tx,7)
 #endif
                                                                        ;
 

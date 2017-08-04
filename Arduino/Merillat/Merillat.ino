@@ -63,10 +63,11 @@ Array<StateMachine *> lStateMachines = Array<StateMachine *>(rawArray, rawSize);
 void DoorControl()
 {
 #undef INCREMENTING_OUTPUTS
+  static CFwTimer *Incrementer = new CFwTimer(0);
 #if defined(INCREMENTING_OUTPUTS)
-  static CFwTimer Incrementer(0);
-  if (Incrementer.IsTimeout()) {
+  if (Incrementer->IsTimeout()) {
     Outputs.SouthThrusterTx.Thrust++;
+    Outputs.NorthThrusterTx.Thrust--;
     South_Winter_Lock_Open.Write(South_Winter_Lock_Open.Read()+1); // ID x11
     if (South_Winter_Lock_Open.Read() == 0) {
       Winter_Lock_Closed.Write(Winter_Lock_Closed.Read()+1);       // ID x11 to cascade bits
@@ -74,10 +75,30 @@ void DoorControl()
     Upper_South_Door.Write(Upper_South_Door.Read()+1);             // ID x21
     North_Winter_Lock_Open.Write(North_Winter_Lock_Open.Read()+1); // ID x31
     Upper_North_Door.Write(Upper_North_Door.Read()+1);             // ID x41 Hydraulic
-    Incrementer.IncrementTimer(1000);
+
+    if (Incrementer->GetExpiredBy() > 1000/2)
+      Incrementer->SetTimer(1000); // way off, just jump so we can catch up
+    else
+      Incrementer->IncrementTimer(1000); // keep the jitter away
   }
   return;
+#else
+  // Creating a blinking LED in every cabinet (1 of the DIO cards)
+  if (Incrementer->IsTimeout()) {
+    Activity_Panel1.Write(!Activity_Panel1.Read()); // toggle 1 bit, same state to all
+    Activity_Panel2.Write(Activity_Panel1.Read());
+    Activity_Panel3.Write(Activity_Panel1.Read());
+    Activity_Panel4.Write(Activity_Panel1.Read());
+
+    if (Incrementer->GetExpiredBy() > 1000/2)
+      Incrementer->SetTimer(1000); // way off, just jump so we can catch up
+    else
+      Incrementer->IncrementTimer(1000); // keep the jitter away
+  }
+  // no return, this can co-exist with normal logic
 #endif
+}
+
 
   // Constantly monitor angle from hinges and maintain them in EEPROM to be
   // handled over power loss.
@@ -117,9 +138,6 @@ void setup()
   myGLCD.InitLCD(LANDSCAPE);
   myGLCD.setFont(SmallFont);
 
-  // Clear the screen and draw the frame
-  myGLCD.clrScr();
-
   // define door placement
   doorLen = 2*MAX_Y/3-12;
   lDoorX = 12; // indent enough for a letter to the left of us
@@ -152,8 +170,9 @@ void setup()
   CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx,  NORTHDOOR_OUTPUT_MASK);
   CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx, 0);
   CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NORTHHYDRAULIC_OUTPUT_MASK);
+  CanPollSetTx(0x701,                  1,                                &MyConstState,                     0); // This will serve as a HeartBeat
 
-  // Initialize our state machines
+  // Initialize our state machine(s)
   for (int iCount = 0; iCount < lStateMachines.size(); iCount++) {
     lStateMachines[iCount]->Initialize();
   }
@@ -169,6 +188,8 @@ void setup()
 // by the configured Timer2 hitting CanPoller() every ms
 void loop()
 {
+  static byte PaintStatics = 0;
+
   if (Serial.available()) {
     char key = Serial.read();
     if (key == 'd')
@@ -221,7 +242,6 @@ void loop()
   // Show communications status
   static CFwTimer GUITimer;
   static bool LastComm = true;
-  static byte PaintStatics = 0;
   static bool Cleared = false;
   if (HaveComm != LastComm) {
     myGLCD.clrScr();

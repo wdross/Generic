@@ -203,16 +203,25 @@ void CanPoller()
       }
       // Don't forget to check the outputs too.  The DIO modules have to be placed
       // into output mode, each output needs a "1" bit in 0x2250.1 that is to be an output
-      while (CheckRX < NUM_IN_BUFFERS+NUM_OUT_BUFFERS) {
+      while (CheckRX < NUM_IN_BUFFERS+NUM_OUT_BUFFERS*2) {
         int subscript = CheckRX-NUM_IN_BUFFERS;
-        int NID = GET_NID(CanOutBuffers[CheckRX-NUM_IN_BUFFERS].Can.COBID);
-        if (!(IS_EXTENDED_COBID & CanOutBuffers[CheckRX-NUM_IN_BUFFERS].Can.COBID) && // not any of the extended ones AND
-            NID) {                                                                    // not SYNC
+        bool hb = (subscript % 2); // false, then true
+        subscript = subscript / 2; // 0..NUM_OUT_BUFFERS
+        int NID = GET_NID(CanOutBuffers[subscript].Can.COBID);
+        if (!(IS_EXTENDED_COBID & CanOutBuffers[subscript].Can.COBID) && // not any of the extended ones AND
+            NID) {                                                       // not SYNC
           // defined module that should be configured to define all bits as outpus
           int Index = 0x2250;
           int SubIndex = 1;
-          int Value = CanOutBuffers[CheckRX-NUM_IN_BUFFERS].OutputMask;
-          SDOwrite(NID,Index,SubIndex,Value,1);
+          INT32U Value = CanOutBuffers[subscript].OutputMask;
+          byte nbytes = 1;
+          if (hb) {
+            Index = 0x1016;
+            SubIndex = 1;
+            Value = (0x01LL << 16) | 300; // they should look for 'our' ID of #1 within 300ms; we'll make a HeartBeat in our list of tx messages
+            nbytes = 4;
+          }
+          SDOwrite(NID,Index,SubIndex,Value,nbytes);
           CheckRX++;
           NoCommTimer.SetTimer(NO_COMM_INTERVAL);
 #if !defined(DO_LOGGING)
@@ -234,9 +243,9 @@ void CanPoller()
       // we've looped once thru all the units and set their PDO Comm param to
       // answer us on a SYNC.  First time after the individual messages, send a
       // NMT to get all units Operational
-      if (CheckRX <= NUM_IN_BUFFERS+NUM_OUT_BUFFERS) {
+      if (CheckRX <= NUM_IN_BUFFERS+NUM_OUT_BUFFERS*2) {
         NMTsend();
-        CheckRX = NUM_IN_BUFFERS+NUM_OUT_BUFFERS+1; // forces 'next state'
+        CheckRX = NUM_IN_BUFFERS+NUM_OUT_BUFFERS*2+1; // forces 'next state'
         NoCommTimer.SetTimer(NO_COMM_INTERVAL);
 #if !defined(DO_LOGGING)
         Serial.println("NMT");
@@ -263,7 +272,7 @@ void CanPoller()
           AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
 #endif
           CanOutBuffers[j].NextSendTime.SetTimer(CAN_TX_INTERVAL);
-          NominalTimer.SetTimer(CanPollerNominalOutputInterval); // we can only put one out this often
+          NominalTimer.IncrementTimer(CanPollerNominalOutputInterval); // we can only put one out this often
           NoCommTimer.SetTimer(0); // keep it expired
           if (ret == CAN_OK)
             OK++;
