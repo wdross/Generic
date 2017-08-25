@@ -1,5 +1,6 @@
 #include <EEPROM.h>
 #include <FlexiTimer2.h>
+#include <PolledTouch.h>
 
 #include "array.h"
 
@@ -76,10 +77,7 @@ void DoorControl()
     North_Winter_Lock_Open.Write(North_Winter_Lock_Open.Read()+1); // ID x31
     Upper_North_Door.Write(Upper_North_Door.Read()+1);             // ID x41 Hydraulic
 
-    if (Incrementer->GetExpiredBy() > 1000/2)
-      Incrementer->SetTimer(1000); // way off, just jump so we can catch up
-    else
-      Incrementer->IncrementTimer(1000); // keep the jitter away
+    Incrementer->IncrementTimerUnlessWayBehind(1000); // keep the jitter away
   }
   return;
 #else
@@ -90,34 +88,265 @@ void DoorControl()
     Activity_Panel3.Write(Activity_Panel1.Read());
     Activity_Panel4.Write(Activity_Panel1.Read());
 
-    if (Incrementer->GetExpiredBy() > 1000/2)
-      Incrementer->SetTimer(1000); // way off, just jump so we can catch up
-    else
-      Incrementer->IncrementTimer(1000); // keep the jitter away
+    Incrementer->IncrementTimerUnlessWayBehind(1000); // keep the jitter away
   }
   // no return, this can co-exist with normal logic
 #endif
 }
 
 
-  // Constantly monitor angle from hinges and maintain them in EEPROM to be
-  // handled over power loss.
-//  if (CanPollElapsedFromLastRxByCOBID(SOUTHDOORANALOG_RX_COBID) < 250) {
-//    // update is recent
-//    if (South_Winter_Door_Position < myEE.SouthDoor.Min)
-//      myEE.SouthDoor.Min = South_Winter_Door_Position;
-//    if (South_Winter_Door_Position > myEE.SouthDoor.Max)
-//      myEE.SouthDoor.Max = South_Winter_Door_Position;
-//  }
-//  if (CanPollElapsedFromLastRxByCOBID(NORTHDOORANALOG_RX_COBID) < 250) {
-//    // update is recent
-//    if (North_Winter_Door_Position < myEE.NorthDoor.Min)
-//      myEE.NorthDoor.Min = North_Winter_Door_Position;
-//    if (North_Winter_Door_Position > myEE.NorthDoor.Max)
-//      myEE.NorthDoor.Max = North_Winter_Door_Position;
-//  }
+// calculate a 32-bit CRC of the data at *src for length BYTES
+unsigned long CalcChecksum(INT8U *src, int length) {
+
+  const unsigned long crc_table[16] = {
+    0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
+    0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
+    0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
+    0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c
+  };
+
+  unsigned long crc = ~0L;
+
+  for (int index = 0 ; index < length; ++index) {
+    crc = crc_table[(crc ^ src[index]) & 0x0f] ^ (crc >> 4);
+    crc = crc_table[(crc ^ (src[index] >> 4)) & 0x0f] ^ (crc >> 4);
+    crc = ~crc;
+  }
+  return crc;
 }
 
+
+myEEPayloadType EECopy;
+
+// +/-45 degrees away from zero is our valid setpoints
+#define FORTYFIVEDEG 4192 // these are 15-bit BDEG, so off by a power of 2
+#define MINUS_FORTYFIVEDEG (32767-FORTYFIVEDEG)
+#define INC_DEC 22 // There is about 91 counts to a degree, so 22 is about 1/4 degree
+
+typedef void (*funcOper)(int t); // I want to be able to call functions that operate on an EEPROM address
+struct {
+  int X,Y; // upper left for text update
+  int cX, cY; // center for touch
+  int Width, Height; // width of touch, X and Y
+  INT16U *Target; // what value might I modify
+  AnalogObject *Source; // what might I get a preset from?
+  funcOper fo;
+} Touches[26];
+
+CFwTimer Activity; // accessible to these helper functions
+void SaveOper(int t) {
+  for (int i=0; i<4; i++) {
+    EECopy.Doors[i].Valid = (EECopy.Doors[i].Opened >= FORTYFIVEDEG &&
+                             EECopy.Doors[i].Opened <= MINUS_FORTYFIVEDEG &&
+                             EECopy.Doors[i].Closed >= FORTYFIVEDEG &&
+                             EECopy.Doors[i].Closed <= MINUS_FORTYFIVEDEG);
+  }
+  myEE.Data = EECopy;
+  myEE.CheckSum = CalcChecksum((INT8U*)&myEE,sizeof(myEE.Data));
+  EEPROM.put(0,myEE); // write out the just-updated EE data
+
+  Activity.SetTimer(0); // and exit
+};
+void CancelOper(int t) {
+  // get out without doing anything
+  Activity.SetTimer(0);
+};
+void PrintUpdatedValue(int t) {
+  char num[10];
+  myGLCD.setBackColor(BLACK);
+  // correctly cap within valid bounds
+  if (*Touches[t].Target < FORTYFIVEDEG)
+    *Touches[t].Target = FORTYFIVEDEG;
+  else if (*Touches[t].Target > MINUS_FORTYFIVEDEG)
+    *Touches[t].Target = MINUS_FORTYFIVEDEG;
+
+  sprintf(num,"%5d",*Touches[t].Target);
+  myGLCD.print(num,Touches[t].X,Touches[t].Y);
+}
+void SetValue(int t) {
+  *Touches[t].Target = Touches[t].Source->Value();
+  Touches[t].fo = NULL;
+  PrintUpdatedValue(t);
+}
+void ChangeValue(int t) {
+  int which = Touches[t].Target;
+  *Touches[which].Target += (INT16U)Touches[t].Source;
+  PrintUpdatedValue(which);
+}
+
+// creates an entry in the array
+// returns the index within Touches[] that was created
+int TouchEntry(int Major, int Minor, int x, int y, int characters, void *Fn, INT16U *t, AnalogObject *src) {
+  int i = Major*6+Minor;
+  Touches[i].X = x;
+  Touches[i].Y = y;
+  Touches[i].Width = characters * myGLCD.getFontWidth();
+  Touches[i].Height = myGLCD.getFontHeight() * 3 / 2; // a little bigger than text
+  Touches[i].cX = x + Touches[i].Width/2;
+  Touches[i].cY = y + Touches[i].Height/2;
+  Touches[i].Target = t;
+  Touches[i].Source = src;
+  Touches[i].fo = Fn;
+  return(i);
+}
+
+void EESettings() {
+  int X,Y; // touch inputs
+
+  // Stay in this routine, allowing user to update settings until SAVE or CANCEL is pressed
+  EECopy = myEE.Data; // we'll change this, and decide to save or not
+
+  Activity.SetTimer(7*60*1000LL); // after 10 minutes of no activity, exit this screen
+  // Graphic routine that takes over from the standard one and shows all values for all doors
+  // and contains the ability to set and modify (+/-) any paramter.
+  // will also show the live value coming from the associated sensor
+  myGLCD.clrScr();
+
+  myGLCD.setColor(WHITE);
+  myGLCD.setBackColor(BLACK);
+  myGLCD.print("Display/Set hinge values", CENTER, 0);
+  myGLCD.setBackColor(BLUE);
+  myGLCD.print("CANCEL", RIGHT, myGLCD.getFontHeight());
+  myGLCD.print("SAVE", LEFT, myGLCD.getFontHeight());
+
+  TouchEntry(4,0,2*myGLCD.getFontWidth(),myGLCD.getFontHeight()*3/2,5,&SaveOper,NULL,NULL); // Save
+  TouchEntry(4,1,MAX_X-2*myGLCD.getFontWidth(),myGLCD.getFontHeight()*3/2,5,&CancelOper,NULL,NULL); // CANCEL
+
+  for (int i=0; i<4; i++) {
+    int j, op, cl;
+    int row = i / 2 + 1; // 1 or 2 (Winter or Upper)
+    int col = i % 2; // 0 or 1 (for South or North)
+    if (row == 2)
+      DoorInfo[i].Y = MAX_Y/3 * row - myGLCD.getFontHeight();
+    else
+      DoorInfo[i].Y = MAX_Y/4 - myGLCD.getFontHeight();
+    myGLCD.setBackColor(BLACK);
+    myGLCD.print(DoorInfo[i].Name,col?RIGHT:LEFT,DoorInfo[i].Y);
+    if (col == 0) {
+      myGLCD.print("Opened",CENTER,DoorInfo[i].Y+2*myGLCD.getFontHeight());
+      myGLCD.print("Closed",CENTER,DoorInfo[i].Y+5*myGLCD.getFontHeight());
+    }
+    int X;
+    if (col) // RIGHT
+      X = MAX_X - 10 * myGLCD.getFontWidth();
+    else // LEFT
+      X = 5 * myGLCD.getFontWidth();
+    if (EECopy.Doors[i].Valid) {
+      myGLCD.setBackColor(BLACK);
+      op = TouchEntry(i,0,X,DoorInfo[i].Y + 2*myGLCD.getFontHeight(),5,NULL,&EECopy.Doors[i].Opened,NULL);
+      PrintUpdatedValue(op);
+      cl = TouchEntry(i,1,X,DoorInfo[i].Y + 5*myGLCD.getFontHeight(),5,NULL,&EECopy.Doors[i].Closed,NULL);
+      PrintUpdatedValue(cl);
+    }
+    else {
+      myGLCD.setBackColor(BLUE);
+      op = TouchEntry(i,0,X,DoorInfo[i].Y + 2*myGLCD.getFontHeight(),5,&SetValue,&EECopy.Doors[i].Opened,DoorInfo[i].Position);
+      myGLCD.print("-SET-",Touches[op].X,Touches[op].Y);
+      cl = TouchEntry(i,1,X,DoorInfo[i].Y + 5*myGLCD.getFontHeight(),5,&SetValue,&EECopy.Doors[i].Closed,DoorInfo[i].Position);
+      myGLCD.print("-SET-",Touches[cl].X,Touches[cl].Y);
+    }
+    myGLCD.setBackColor(BLUE);
+    j = TouchEntry(i,2,X-4*myGLCD.getFontWidth(),DoorInfo[i].Y + 2*myGLCD.getFontHeight(),3,&ChangeValue,op,-INC_DEC);
+    myGLCD.print("-",Touches[j].X,Touches[j].Y);
+    j = TouchEntry(i,3,X+8*myGLCD.getFontWidth(),DoorInfo[i].Y + 2*myGLCD.getFontHeight(),3,&ChangeValue,op,+INC_DEC);
+    myGLCD.print("+",Touches[j].X,Touches[j].Y);
+
+    j = TouchEntry(i,4,X-4*myGLCD.getFontWidth(),DoorInfo[i].Y + 5*myGLCD.getFontHeight(),3,&ChangeValue,cl,-INC_DEC);
+    myGLCD.print("-",Touches[j].X,Touches[j].Y);
+    j = TouchEntry(i,5,X+8*myGLCD.getFontWidth(),DoorInfo[i].Y + 5*myGLCD.getFontHeight(),3,&ChangeValue,cl,+INC_DEC);
+    myGLCD.print("+",Touches[j].X,Touches[j].Y);
+  }
+
+  // just print what we're looking for
+  for (int i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++) {
+    Serial.print("["); Serial.print(i); Serial.print("] (");
+    Serial.print(Touches[i].X); Serial.print(","); Serial.print(Touches[i].Y); Serial.println(")");
+  }
+
+  while (Activity.IsTiming()) {
+    for (int i=0; i<4; i++) {
+      char value[12];
+      int row = i / 2 + 1; // 1 or 2
+      int col = i % 2; // 0 or 1 (for South or North)
+      // update values from the CAN Analog modules
+      myGLCD.setBackColor(BLACK);
+      if (CanPollElapsedFromLastRxByCOBID(DoorInfo[i].COBID) > NOT_TALKING_TIMEOUT)
+        sprintf(value,"-----");
+      else {
+        INT16U v = DoorInfo[i].Position->Value();
+        if (v > FORTYFIVEDEG &&
+            MINUS_FORTYFIVEDEG > v)
+          myGLCD.setColor(GREEN);
+        else
+          myGLCD.setColor(RED);
+
+        sprintf(value,"%5d",DoorInfo[i].Position->Value());
+      }
+      int X;
+      if (col) // RIGHT
+        X = MAX_X - 10 * myGLCD.getFontWidth();
+      else // LEFT
+        X = 5 * myGLCD.getFontWidth();
+      myGLCD.print(value,X,DoorInfo[i].Y - myGLCD.getFontHeight());
+    }
+    char digits[20];
+    long ct = Activity.GetExpiredBy()/1000;
+    if (ct == INFINITE)
+      sprintf(digits,"   -   ");
+    else
+      sprintf(digits,"%7ld",ct);
+    myGLCD.setColor(WHITE);
+    myGLCD.print(digits,CENTER,MAX_Y-12);
+
+    if (ToucherLoop(X,Y)) {
+      Activity.ResetTimer(); // restart counting from 'now'
+      sprintf(digits,"  %d,%d  ",X,Y);
+      myGLCD.print(digits,CENTER,1); // top of screen
+      for (int i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++) {
+        // which one are we touching closest to?
+        if (Touches[i].fo &&
+            abs(Touches[i].X - X) < 15 &&
+            abs(Touches[i].Y - Y) < 15) {
+          // yup, this one looks good
+          Touches[i].fo(i); // run it
+          Serial.print("Matched ");
+          Serial.println(i);
+          break; // quit looking
+        }
+      }
+    }
+  } // while timer indicates activity
+
+  myGLCD.clrScr(); // erase screen on the way out
+}
+
+
+void EEDisplay() {
+  // show the contents of our EE structure on the serial port
+  char sig[50];
+  sprintf(sig,"EEPROM contents: '%s' (%d bytes)",myEE.Data.Signature,myEE.Data.TotalSize);
+  Serial.println(sig);
+  for (int i=0; i<4; i++) {
+    Serial.print(DoorInfo[i].Name);
+    Serial.print(": ");
+    if (myEE.Data.Doors[i].Valid) {
+      Serial.print(myEE.Data.Doors[i].Closed);
+      Serial.print("  ");
+      Serial.println(myEE.Data.Doors[i].Opened);
+    }
+    else
+      Serial.println("---");
+  }
+  Serial.print(myEE.CheckSum,HEX);
+  Serial.print("  ");
+  if (CalcChecksum((INT8U*)&myEE.Data,sizeof(myEE.Data)) == myEE.CheckSum)
+    Serial.print("OK");
+  else
+    Serial.print("bad");
+}
+
+#define MY_EEPROM_SIGNATURE "$EEM"
+INT8U MyConstState = 0x5; // broadcasts "I'm Operational"
 
 void setup()
 {
@@ -131,8 +360,37 @@ void setup()
       delay(100);
   }
   Serial.println("CAN BUS Shield init ok!");
-  Serial.print("EEPROM size = ");
-  Serial.println(EEPROM.length());
+
+#ifdef SPI_HAS_TRANSACTION
+  Serial.println("#ifdef SPI_HAS_TRANSACTION");
+#else
+  Serial.println("no TRANSACTIONS");
+#endif
+
+  memset(&myEE,0,sizeof(myEE)); // wipe it all out, makes !Valid too
+  if (EEPROM.length() >= sizeof(myEE)) {
+    EEPROM.get(0,myEE); // pull full structure from EEPROM
+    if (strncmp(myEE.Data.Signature,MY_EEPROM_SIGNATURE,sizeof(myEE.Data.Signature)-1) == 0 &&
+        myEE.Data.TotalSize == sizeof(myEE) &&
+        CalcChecksum((INT8U*)&myEE,sizeof(myEE.Data)) == myEE.CheckSum) {
+      // all was OK, checksum worked out the same
+      // this means the data as-is in RAM is OK
+      Serial.println("Retrieved data from EEPROM OK");
+    }
+    else {
+      // checksum didn't work out, so we can't use these values
+      // but do set up the structure so it can be saved back into EEPROM
+      memset(&myEE,0,sizeof(myEE.Data)); // wipe it all out again, we just read some stuff that wasn't valid
+      strcpy(myEE.Data.Signature,MY_EEPROM_SIGNATURE);
+      myEE.Data.TotalSize = sizeof(myEE);
+      Serial.println("Invalid EE data, initialized structure");
+    }
+    EEDisplay();
+  }
+  else {
+    Serial.println("Not enough EEPROM available!");
+    // the local structure will be full of zeros (!Valid) and shouldn't be (can't!) be written to EEPROM
+  }
 
   // Setup the LCD
   myGLCD.InitLCD(LANDSCAPE);
@@ -179,7 +437,9 @@ void setup()
 
   CanPollDisplay(3); // show everything we've configured
 
-  FlexiTimer2::set(1, 0.0004, CanPoller); // Every 0.4 ms (400us)
+  ToucherSetup(); // initialize the lines for reaching the touch input
+
+  FlexiTimer2::set(1, 0.00035, CanPoller); // Every 0.35 ms (350us) or 2857 times per second
   FlexiTimer2::start();
 }
 
@@ -194,6 +454,13 @@ void loop()
     char key = Serial.read();
     if (key == 'd')
       CanPollDisplay(3);
+    else if (key == 'e' || key == 'E')
+      EEDisplay();
+    else if (key == 'W') {
+      // request to wipe all EEPROM data
+      memset(&myEE,0,sizeof(myEE));
+      Serial.println("Erased copy of EEPROM");
+    }
     else {
       Serial.println();
       Serial.print("OK=");
@@ -273,23 +540,13 @@ void loop()
       mY += myGLCD.getFontHeight();
       mY = mY % (MAX_Y-myGLCD.getFontHeight());
       myGLCD.print(MISSING,mX,mY);
-      GUITimer.IncrementTimer(750);
+      GUITimer.IncrementTimerUnlessWayBehind(750);
     }
   }
   else { // HaveComm, see about updating any changed elements
 #define BUMP_GUI_TIMER if (GUITimer.IsTimeout()) PaintStatics=2; GUITimer.SetTimer(60000);
-    float SouthAngle = ANALOG_TO_RADIANS(South_Winter_Door_Position); // convert 0..4096 into 0..2pi
-    if (SouthAngle > M_PI/2) // over 90 deg?
-      SouthAngle = M_PI/2; // saturate at 90 deg
-    else if (SouthAngle < DEGREES_TO_RADIANS(MIN_ANGLE)) // below Min (or negative?)
-      SouthAngle = DEGREES_TO_RADIANS(MIN_ANGLE); // saturate at Min (closed)
-
-    float NorthAngle = ANALOG_TO_RADIANS(North_Winter_Door_Position); // convert 0..4096 into 0..2pi
-    if (NorthAngle > M_PI/2) // over 90 deg?
-      NorthAngle = M_PI/2; // saturate at 90 deg
-    else if (NorthAngle < DEGREES_TO_RADIANS(MIN_ANGLE)) // below Min (or negative?)
-      NorthAngle = DEGREES_TO_RADIANS(MIN_ANGLE); // saturate at Min (closed)
-    NorthAngle = M_PI - NorthAngle; // mirror angle across 180
+    float SouthAngle = Winter_South_Door_Position.Angle(); // get Analog value as MIN_ANGLE..PI/2 radians
+    float NorthAngle = Winter_North_Door_Position.Angle(); // get Analog value as MIN_ANGLE..PI/2 radians
 
     NewLeftDoor.Y = -sin(SouthAngle)*doorLen; // rise
     NewLeftDoor.X = cos(SouthAngle)*doorLen; // run
@@ -326,21 +583,7 @@ void loop()
     }
 
 #define UPPER_DOOR_OFFSET 2
-    byte UpperDoorState = Upper_South_Door_IsOpen.Read() + Upper_South_Door_IsClosed.Read()*2;
-    float UpperAngle;
-    switch (UpperDoorState) {
-      case 0: // Neither -- somewhere in between
-        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
-        break;
-      case 1: // Open
-        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
-        break;
-      case 2: // Closed
-        UpperAngle = DEGREES_TO_RADIANS(0);
-        break;
-      default: // Invalid
-        UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
-    }
+    float UpperAngle = Upper_South_Door_Position.Angle();
     NewUpperLeftDoor.Y = -sin(UpperAngle)*doorLen; // rise
     NewUpperLeftDoor.X = cos(UpperAngle)*doorLen; // run
     NewUpperLeftDoor.Y += lDoorY+UPPER_DOOR_OFFSET; // add in our offset, same for left and right
@@ -358,21 +601,7 @@ void loop()
       BUMP_GUI_TIMER;
     }
 
-    UpperDoorState = Upper_North_Door_IsOpen.Read() + Upper_North_Door_IsClosed.Read()*2;
-    switch (UpperDoorState) {
-      case 0: // Neither -- somewhere in between
-        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE/2.0);
-        break;
-      case 1: // Open
-        UpperAngle = DEGREES_TO_RADIANS(MAX_ANGLE);
-        break;
-      case 2: // Closed
-        UpperAngle = DEGREES_TO_RADIANS(0);
-        break;
-      default: // Invalid
-        UpperAngle = DEGREES_TO_RADIANS(-4); // looks 'over closed'
-    }
-    UpperAngle = M_PI - UpperAngle; // mirror angle across 180
+    UpperAngle = Upper_North_Door_Position.Angle();
     NewUpperRightDoor.Y = -sin(UpperAngle)*doorLen; // rise
     NewUpperRightDoor.Y += rDoorY+UPPER_DOOR_OFFSET; // add in offset
     NewUpperRightDoor.X = rDoorX-UPPER_DOOR_OFFSET + cos(UpperAngle)*doorLen; // run
@@ -397,8 +626,11 @@ void loop()
       BitObject *Source;
     } DI_display[] = { // Digital Input
       // Requests coming from remote control:
-      {"Request Open", (MAX_X-myGLCD.getFontWidth()*12)/2,myGLCD.getFontHeight()*4, true,&Remote_IsRequestingOpen},
-      {"Request Close",(MAX_X-myGLCD.getFontWidth()*13)/2,myGLCD.getFontHeight()*5, true,&Remote_IsRequestingClose},
+      {"Remote Open", MAX_X/2-myGLCD.getFontWidth()*9,myGLCD.getFontHeight()*3, true,&Remote_IsRequestingOpen},
+      {"Remote Close",MAX_X/2-myGLCD.getFontWidth()*9,myGLCD.getFontHeight()*4, true,&Remote_IsRequestingClose},
+      {"Local",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*3, true,&Local_IsRequestingOpen},
+      {"Local",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*4, true,&Local_IsRequestingClose},
+      {"System Enabled",(MAX_X-myGLCD.getFontWidth()*14)/2,myGLCD.getFontHeight()*5, true,&System_Enable},
       // south latch
       {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
       {"L",    2,                                  MAX_Y/3+myGLCD.getFontHeight()*3,true,&South_Winter_Lock_Open_IsLatched},
@@ -487,6 +719,17 @@ void loop()
       myGLCD.setColor(YELLOW);
       myGLCD.setBackColor(BLACK);
       myGLCD.print(digits,RIGHT,myGLCD.getFontHeight()*2);
+    }
+
+    int X,Y;
+    if (ToucherLoop(X,Y)) {
+      if (GUITimer.IsTiming() && // screen saver isn't running
+          abs(X - MAX_X/2) < 30 &&
+          abs(Y - 2*MAX_Y/3) < 30) {
+        EESettings(); // gets stuck in here for a long time
+        PaintStatics = 2; // redraw the main screen when we return
+      }
+      BUMP_GUI_TIMER; // prevent or wake up from sleep
     }
 
     if (PaintStatics) {

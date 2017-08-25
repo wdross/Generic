@@ -1,18 +1,23 @@
+Decoding of trace file captured 8/18:
+- Instance 1 is North Door
+- Instance 2 is South Door
+
+
 As of 08/04/2017, need to:
 - Alter RxTest software on Uno to respond, making a simulator
   when a jumper or input is set (so no pgm change needed to just log)
-- port speed improvements back to RxTest software so we don't lose messages
-- CAN module configured to fail off upon lack of comm ???
-- GUI:
-  - activate Touch functions:
-    - touch to wake from 'screen saver' mode
-    - touch an Open/Close input request to start sequence?
-    - when in Error mode, touch will have list of all nodes and which are OK vs Not
+- GUI
+  - touch an Open/Close input request to start sequence?
+  - use EEPROM Min/Max to draw angles
+  - when in Error mode, touch will have list of all nodes and which are OK vs Not
 - would be nice:
   - after an open/close cycle, display the time remaining of each state sequenced thru.
     allows to see how close to 'failing' each state is (don't make it too tight)
 
 Done:
+- Store/retrieve/validate data from EEPROM as good for 4 pairs of Max/Min
+- need to display current numeric values from angles; set Min/Max in EEPROM
+- jumper/switch input for "enable", otherwise logic won't run
 - Have a data logger for when tracing thruster activity
   - currently boots at 250kBaud
   - outputs data in CANKing format (thanks Pete!)
@@ -36,3 +41,6 @@ Done:
   - 'screen saver' is nothing but a black screen, to prevent burn-in
   - Shows current state and standard timer used in that state showing
     when a fault will be generated if the correct inputs aren't seen
+  - activate Touch functions:
+    - touch to wake from 'screen saver' mode
+    - Configuration screen to set Min/Max values

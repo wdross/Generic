@@ -20,7 +20,10 @@ DoorStates::DoorStates() :
   StateMachine(ST_MAX_STATES)
 {
   OpenTimer.SetTimer(INFINITE);
-  RateOfChangeTimer.SetTimer(INFINITE);
+  Upper_South_Door_Position.Cancel();
+  Upper_North_Door_Position.Cancel();
+  Winter_South_Door_Position.Cancel();
+  Winter_North_Door_Position.Cancel();
   ErrorTimer.SetTimer(INFINITE);
   InternalEvent(eST_AwaitFullyOpenOrFullyClosed);
 }
@@ -58,10 +61,17 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
 
   OpenTimer.SetTimer(INFINITE);
 
-  if (!Upper_North_Door_IsClosed.Read() &&
-      Upper_North_Door_IsOpen.Read() &&  // Upper North Open
-      !Upper_South_Door_IsClosed.Read() &&
-      Upper_South_Door_IsOpen.Read() &&  // Upper South Open
+  // Don't allow any buttons to appear to be hard-wired on
+  if (Remote_IsRequestingOpen.Read() ||
+      Remote_IsRequestingClose.Read() ||
+      Local_IsRequestingOpen.Read() ||
+      Local_IsRequestingClose.Read())
+    return;
+
+  if (Upper_North_Door_Position.IsOpen() &&  // Upper North Open
+      Upper_South_Door_Position.IsOpen() &&  // Upper South Open
+      Winter_North_Door_Position.IsOpen() &&
+      Winter_South_Door_Position.IsOpen() &&
       South_Winter_Lock_Open_IsLatched.Read() &&
       !South_Winter_Lock_Open_IsUnlatched.Read() && // South Winter Locked open
       North_Winter_Lock_Open_IsLatched.Read() &&
@@ -69,13 +79,13 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
     InternalEvent(eST_IsOpen);
   }
 
-  if (Upper_North_Door_IsClosed.Read() &&
-      !Upper_North_Door_IsOpen.Read() &&  // Upper North closed
-      Upper_South_Door_IsClosed.Read() &&
-      !Upper_South_Door_IsOpen.Read() &&  // Upper South closed
+  if (Upper_North_Door_Position.IsClosed() &&
+      Upper_South_Door_Position.IsClosed() &&
+      Winter_North_Door_Position.IsClosed() &&
+      Winter_South_Door_Position.IsClosed() &&
       !Winter_Lock_Closed_IsUnlatched.Read() &&
-      Winter_Lock_Closed_IsLatched.Read() && // Winter is locked
-      !South_Winter_Lock_Open_IsLatched.Read()) {
+      Winter_Lock_Closed_IsLatched.Read()) { // Winter is locked
+
     InternalEvent(eST_IsClosed);
   }
 }
@@ -87,11 +97,17 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
 void DoorStates::ST_IsOpen()
 {
   // do whatever we need to clear state machine and begin closing things
-  // establish what 'opened' looks like
-  myEE.SouthDoor.Max = South_Winter_Door_Position;
-  myEE.NorthDoor.Max = North_Winter_Door_Position;
   ErrorTimer.SetTimer(INFINITE);
-  if (Remote_IsRequestingClose.Read()) {
+
+  if (Remote_IsRequestingOpen.Read() ||
+      Local_IsRequestingOpen.Read())
+    return; // The request to open is still active -- don't begin Close sequence
+
+  if (!System_Enable.Read())
+    return; // system isn't enabled, don't run state machine
+
+  if (Remote_IsRequestingClose.Read() ||
+      Local_IsRequestingClose.Read()) {
     // switch to CLOSE state machine
     OpenTimer.SetTimer(UPPER_DOORS_CLOSE_TIME); // Big doors take about a minute
     InternalEvent(eST_CloseUpperDoors);
@@ -104,11 +120,17 @@ void DoorStates::ST_IsOpen()
 void DoorStates::ST_IsClosed()
 {
   // do whatever we need to clear state machine and begin opening things
-  // establish what 'closed' looks like
-  myEE.SouthDoor.Min = South_Winter_Door_Position;
-  myEE.NorthDoor.Min = North_Winter_Door_Position;
   ErrorTimer.SetTimer(INFINITE);
-  if (Remote_IsRequestingOpen.Read()) {
+
+  if (Remote_IsRequestingClose.Read() ||
+      Local_IsRequestingClose.Read())
+    return; // The request to close is still active -- don't begin Open sequence
+
+  if (!System_Enable.Read())
+    return; // system isn't enabled, don't run state machine
+
+if (Remote_IsRequestingOpen.Read() ||
+    Local_IsRequestingOpen.Read()) {
     // switch to OPEN state machine
     OpenTimer.SetTimer(ACTUATOR_TIME); // Actuator takes 10s for full transition
     InternalEvent(eST_Unlock);
@@ -151,10 +173,7 @@ void DoorStates::ST_Unlock()
     North_Winter_Latch.Write(lr_No_Request);
     South_Winter_Latch.Write(lr_No_Request);
     Center_Winter_Latch.Write(lr_No_Request);
-    OpenTimer.SetTimer(UPPER_DOORS_OPEN_TIME); // how long will the doors to become open enough to latch
-    RateOfChangeTimer.SetTimer(ROC_RATE);
-    LastSouthPosition = South_Winter_Door_Position;
-    LastNorthPosition = North_Winter_Door_Position;
+    OpenTimer.SetTimer(UPPER_DOORS_OPEN_TIME); // how long will it take the doors to become open enough to latch
     InternalEvent(eST_MoveOpenWinterDoors);
   }
   else if (OpenTimer.IsTimeout()) {
@@ -171,27 +190,14 @@ void DoorStates::ST_Unlock()
 //!
 void DoorStates::ST_MoveOpenWinterDoors()
 {
-  // once we trace manual movement data, we'll have a pretty good idea what
-  // this should look like.
-  if (RateOfChangeTimer.IsTimeout()) {
-    // what is the rate of change?
-    INT16S CurrentPosition = South_Winter_Door_Position;
-    SouthMovement = CurrentPosition - LastSouthPosition;
-    LastSouthPosition = CurrentPosition;
-    CurrentPosition = North_Winter_Door_Position;
-    NorthMovement = CurrentPosition - LastNorthPosition;
-    LastNorthPosition = CurrentPosition;
-
-    RateOfChangeTimer.IncrementTimer(ROC_RATE);
-  }
   // if RateOfChange shows we're stalled after we've moved enough to open, move to next state
 
-  if (SouthMovement < 10 &&
-      ANALOG_TO_RADIANS(LastSouthPosition - myEE.SouthDoor.Min) > DEGREES_TO_RADIANS(DEGREES_CHANGE*9.0/10.0)) {
+  if (Winter_South_Door_Position.IsSlow() &&
+      Winter_South_Door_Position.Open90Percent()) {
     Outputs.SouthThrusterTx.Thrust = MIN_THRUST;
   }
-  if (NorthMovement < 10 &&
-      ANALOG_TO_RADIANS(LastNorthPosition - myEE.NorthDoor.Min) > DEGREES_TO_RADIANS(DEGREES_CHANGE*9.0/10.0)) {
+  if (Winter_North_Door_Position.IsSlow() &&
+      Winter_North_Door_Position.Open90Percent()) {
     Outputs.NorthThrusterTx.Thrust = MIN_THRUST;
   }
   if (Outputs.SouthThrusterTx.Thrust == MIN_THRUST &&
@@ -257,7 +263,7 @@ void DoorStates::ST_LockOpenWinterDoors()
 //!
 void DoorStates::ST_OpenUpperDoors()
 {
-  bool NorthOpen = Upper_North_Door_IsOpen.Read();
+  bool NorthOpen = Upper_North_Door_Position.IsOpen();
   if (NorthOpen) {
     Upper_North_Door.Write(lr_No_Request);
   }
@@ -265,7 +271,7 @@ void DoorStates::ST_OpenUpperDoors()
     Upper_North_Door.Write(lr_Unlatch_Request); // Unlatch == Open
   }
 
-  bool SouthOpen = Upper_South_Door_IsOpen.Read();
+  bool SouthOpen = Upper_South_Door_Position.IsOpen();
   if (SouthOpen) {
     Upper_South_Door.Write(lr_No_Request);
   }
@@ -282,11 +288,11 @@ void DoorStates::ST_OpenUpperDoors()
 }
 
 //!
-//! Now move the upper doors open until they hit their limit switches
+//! Now move the upper doors open until they get to their closed postition
 //!
 void DoorStates::ST_CloseUpperDoors()
 {
-  bool NorthClose = Upper_North_Door_IsClosed.Read();
+  bool NorthClose = Upper_North_Door_Position.IsClosed();
   if (NorthClose) {
     Upper_North_Door.Write(lr_No_Request);
   }
@@ -294,7 +300,7 @@ void DoorStates::ST_CloseUpperDoors()
     Upper_North_Door.Write(lr_Latch_Request);
   }
 
-  bool SouthClose = Upper_South_Door_IsClosed.Read();
+  bool SouthClose = Upper_South_Door_Position.IsClosed();
   if (SouthClose) {
     Upper_South_Door.Write(lr_No_Request);
   }

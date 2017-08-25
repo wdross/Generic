@@ -46,9 +46,6 @@ private:
     };
 
     CFwTimer OpenTimer;
-    CFwTimer RateOfChangeTimer;
     CFwTimer ErrorTimer;
-    INT16S LastNorthPosition, LastSouthPosition;
-    INT16S NorthMovement, SouthMovement;
 };
 #endif // DOORSTATES_H
