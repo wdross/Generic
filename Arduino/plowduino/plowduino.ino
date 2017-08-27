@@ -1,4 +1,5 @@
 #include "WiiChuck.h"
+#include "CFwTimer.h"
 
 WiiChuck chuck = WiiChuck();
 
@@ -37,47 +38,81 @@ void setup() {
   digitalWrite(PUMP, OFF);
 }
 
+int u_d_latch = -1;
+int old_u_d_latch = -1;
+#define DEBOUNCE 150
+#define RAISE_TIMER 2500
+CFwTimer u_d_timer;
+CFwTimer autoRaiseTimer;
+bool floatDown = false;
+bool autoRaise = false;
+
 void loop() {
   delay(20);
-  chuck.update(); 
-
-  Serial.print(chuck.readJoyX());
-    Serial.print(", ");  
-  Serial.print(chuck.readJoyY());
-    Serial.print(", ");  
-
-  if (chuck.buttonZ) {
-     Serial.print("Z");
-  } else  {
-     Serial.print("-");
-  }
-
-  Serial.print(", ");  
-
-  if (chuck.buttonC) {
-     Serial.print("C");
-  } else  {
-     Serial.print("-");
-  }
-
-  Serial.println();
+  chuck.update();
 
   bool pump = false;
   if (chuck.buttonZ && !chuck.buttonC) {
     // Put Plow down because Z is the only pressed button
-    digitalWrite(PLOW_DOWN, ON);
-    digitalWrite(PLOW_UP, OFF);
+    if (u_d_latch == 1 && u_d_timer.GetExpiredBy() > DEBOUNCE) {
+      // pressed and held for DEBOUNCE time
+      digitalWrite(PLOW_DOWN, ON);
+      digitalWrite(PLOW_UP, OFF);
+      floatDown = false;
+    }
+    else if (old_u_d_latch == 1 && u_d_timer.GetExpiredBy() < DEBOUNCE*2) {
+      floatDown = true;
+    }
+    else if (u_d_latch != 1) {
+      // first time we've been through here
+      if (floatDown)
+        u_d_timer.SetTimer(-DEBOUNCE);
+      else {
+        u_d_timer.SetTimer(0);
+        digitalWrite(PLOW_UP, OFF);
+      }
+      u_d_latch = 1;
+      old_u_d_latch = -1;
+      autoRaise = false;
+    }
   }
   else if (!chuck.buttonZ && chuck.buttonC) {
     // raise plow, the C button is the only pressed button
-    digitalWrite(PLOW_DOWN, OFF);
-    digitalWrite(PLOW_UP, ON);
-    pump = true;
+    if (u_d_latch == 2 && u_d_timer.GetExpiredBy() > DEBOUNCE) {
+      digitalWrite(PLOW_DOWN, OFF);
+      digitalWrite(PLOW_UP, ON);
+      pump = true;
+      autoRaise = false;
+    }
+    else if (old_u_d_latch == 2 && u_d_timer.GetExpiredBy() < DEBOUNCE*2) {
+      autoRaise = true;
+    }
+    else if (u_d_latch != 2) {
+      // first time we've been thru here
+      if (autoRaise) {
+        u_d_timer.SetTimer(-DEBOUNCE);
+        pump = true;
+      }
+      else
+        u_d_timer.SetTimer(0);
+      u_d_latch = 2;
+      old_u_d_latch = -1;
+      floatDown = false;
+    }
   }
   else {
     // neither raise nor lower
-    digitalWrite(PLOW_DOWN, OFF);
-    digitalWrite(PLOW_UP, OFF);
+    if (u_d_latch != -1) {
+      autoRaiseTimer.SetTimer(RAISE_TIMER);
+      old_u_d_latch = u_d_latch;
+    }
+    if (autoRaise && autoRaiseTimer.IsTimeout()) {
+      autoRaise = false;
+    }
+    digitalWrite(PLOW_DOWN, floatDown?ON:OFF);
+    digitalWrite(PLOW_UP, autoRaise?ON:OFF);
+    pump = autoRaise;
+    u_d_latch = -1;
   }
 
   if (chuck.readJoyX() < -JOY_ON && chuck.readJoyY() > JOY_ON) {
