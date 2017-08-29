@@ -1,0 +1,3 @@
+[submodule "Arduino/plowduino"]
+	path = Arduino/plowduino
+	url = https://github.com/1fastgranada/plowduino
