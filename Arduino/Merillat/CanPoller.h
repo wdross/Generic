@@ -16,6 +16,7 @@
 
 #define COB_ID_MASK 0x1FFFFFFFL // 29-bit mask
 
+typedef void (*voidFuncPtr)();
 
 struct CanEntryType {
   INT32U COBID;
@@ -30,6 +31,7 @@ struct CanTxType {
 struct CanRxType {
   CFwTimer LastRxTime;
   CanEntryType Can;
+  voidFuncPtr RxFunction;
 };
 
 
@@ -47,7 +49,7 @@ void CanPollerInit();
 
 void CanPoller();
 
-void CanPollSetRx(INT32U COBID, char len, INT8U *buf);
+void CanPollSetRx(INT32U COBID, char len, INT8U *buf, voidFuncPtr userFN=NULL);
 void CanPollSetTx(INT32U COBID, char len, INT8U *buf, INT8U mask);
 
 // Returns the amount of ms elapsed since the last reception

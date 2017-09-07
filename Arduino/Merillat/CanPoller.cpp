@@ -25,7 +25,7 @@ void CanPollerInit()
 } // CanPollerInit
 
 // Set up &buf to receive len bytes of data from COBID seen on CAN-BUS
-void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
+void CanPollSetRx(INT32U COBID, char len, INT8U *buf, voidFuncPtr userFN)
 {
   // set up the next available CanInBuffers[] entry to be a receiver
   for (int j=0; j<NUM_IN_BUFFERS; j++) {
@@ -34,6 +34,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf)
       CanInBuffers[j].Can.pMessage = buf;
       CanInBuffers[j].Can.COBID = COBID;
       CanInBuffers[j].LastRxTime.SetTimer(INFINITE); // nothing yet
+      CanInBuffers[j].RxFunction = userFN;
       break; // we're done
     }
   }
@@ -97,10 +98,11 @@ int MapFnToCommParam(INT32U COBID)
 CFwTimer GrossTimeoutChecker;
 CFwTimer NominalTimer;
 bool HaveComm = false;
-// This is being called upon a hardware timer every 0.4ms thru use of the FlexiTimer2 class.
+// This is being called upon a hardware timer every 0.35ms (350us) thru use of the FlexiTimer2 class.
 // The time value was selected based upon some sample data taken from 7 ESD modules connected
 // and responding in our needed fashion, and seeing the shortest aparent message was a single
 // 0.26ms but is more typically 0.44-0.52ms per shortest arrival message.
+// During some testing, 0.4ms was not short enough, so lowered to 0.35ms (2857 Hz)
 // It services both in and outbound messages, so MUST BE EFFICIENT!!
 void CanPoller()
 {
@@ -121,10 +123,12 @@ void CanPoller()
     AddToDisplayBuffer(COBID,len,Msg);
 #endif
     for (j=0; j<NUM_IN_BUFFERS && CanInBuffers[j].Can.COBID; j++) {
-      if (COBID == CanInBuffers[j].Can.COBID) {
+      if (COBID == (CanInBuffers[j].Can.COBID&COB_ID_MASK)) {
         // found match, record time and save the bytes
         CanInBuffers[j].LastRxTime.SetTimer(0); // record 'now'
         memcpy(CanInBuffers[j].Can.pMessage,Msg,CanInBuffers[j].Can.Length);
+        if (CanInBuffers[j].RxFunction)
+          CanInBuffers[j].RxFunction();
         break; // skip out of the loop
       }
     }
@@ -301,8 +305,8 @@ void CanPollDisplay(int io)
         Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
-        Serial.print("\t");
-        Serial.print((long)CanOutBuffers[j].Can.pMessage);
+        Serial.print("\t0x");
+        Serial.print((long)CanOutBuffers[j].Can.pMessage,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID?1:0);
         Serial.print("\t");
@@ -329,8 +333,8 @@ void CanPollDisplay(int io)
         Serial.print(CanInBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanInBuffers[j].Can.Length);
-        Serial.print("\t");
-        Serial.print((long)CanInBuffers[j].Can.pMessage);
+        Serial.print("\t0x");
+        Serial.print((long)CanInBuffers[j].Can.pMessage,HEX);
         Serial.print("\t");
         Serial.print(CanInBuffers[j].LastRxTime.getEndTime());
         if (CanInBuffers[j].Can.Length) {

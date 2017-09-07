@@ -46,18 +46,18 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
   Upper_South_Door.Write(lr_No_Request);
   North_Winter_Latch.Write(lr_No_Request);
   Upper_North_Door.Write(lr_No_Request);
-  Outputs.SouthThrusterTx.ManufactureCode = 306;// :11;
-  Outputs.SouthThrusterTx.Reserved = 0x3; // :2, all 1s
-  Outputs.SouthThrusterTx.IndustryGroup = 4; //:3;
-  Outputs.SouthThrusterTx.ThrusterInstance = SOUTH_THRUSTER_INSTANCE; // :4;
+  Outputs.Thrusters[SOUTH_INSTANCE].ManufactureCode = 306;// :11;
+  Outputs.Thrusters[SOUTH_INSTANCE].Reserved = 0x3; // :2, all 1s
+  Outputs.Thrusters[SOUTH_INSTANCE].IndustryGroup = 4; //:3;
+  Outputs.Thrusters[SOUTH_INSTANCE].ThrusterInstance = SOUTH_INSTANCE; // :4;
   
-  Outputs.SouthThrusterTx.Direction = NO_DIRECTION; // :2
-  Outputs.SouthThrusterTx.Retract = NO_ACTION; // :2, unused
-  Outputs.SouthThrusterTx.ReservedB = 0; // :6, all 0s
-  Outputs.SouthThrusterTx.ReservedC = 0; // :24, all 0s
+  Outputs.Thrusters[SOUTH_INSTANCE].Direction = NO_DIRECTION; // :2
+  Outputs.Thrusters[SOUTH_INSTANCE].Retract = NO_ACTION; // :2, unused
+  Outputs.Thrusters[SOUTH_INSTANCE].ReservedB = 0; // :6, all 0s
+  Outputs.Thrusters[SOUTH_INSTANCE].ReservedC = 0; // :24, all 0s
   
-  Outputs.NorthThrusterTx = Outputs.SouthThrusterTx; // make the North same as the South .. all fields
-  Outputs.NorthThrusterTx.ThrusterInstance = NORTH_THRUSTER_INSTANCE; // :4;  except this one
+  Outputs.Thrusters[NORTH_INSTANCE] = Outputs.Thrusters[SOUTH_INSTANCE]; // make the North same as the South .. all fields
+  Outputs.Thrusters[NORTH_INSTANCE].ThrusterInstance = NORTH_INSTANCE; // :4;  except this one
 
   OpenTimer.SetTimer(INFINITE);
 
@@ -194,14 +194,14 @@ void DoorStates::ST_MoveOpenWinterDoors()
 
   if (Winter_South_Door_Position.IsSlow() &&
       Winter_South_Door_Position.Open90Percent()) {
-    Outputs.SouthThrusterTx.Thrust = MIN_THRUST;
+    Outputs.Thrusters[SOUTH_INSTANCE].Thrust = MIN_THRUST;
   }
   if (Winter_North_Door_Position.IsSlow() &&
       Winter_North_Door_Position.Open90Percent()) {
-    Outputs.NorthThrusterTx.Thrust = MIN_THRUST;
+    Outputs.Thrusters[NORTH_INSTANCE].Thrust = MIN_THRUST;
   }
-  if (Outputs.SouthThrusterTx.Thrust == MIN_THRUST &&
-      Outputs.SouthThrusterTx.Thrust == MIN_THRUST) {
+  if (Outputs.Thrusters[SOUTH_INSTANCE].Thrust == MIN_THRUST &&
+      Outputs.Thrusters[NORTH_INSTANCE].Thrust == MIN_THRUST) {
     OpenTimer.SetTimer(ACTUATOR_TIME); // Actuator takes 10s for full transition
     InternalEvent(eST_LockOpenWinterDoors);
     // we leave both thrusters running on low as we lock the doors open
@@ -225,7 +225,7 @@ void DoorStates::ST_LockOpenWinterDoors()
   bool NorthLatched = North_Winter_Lock_Open_IsLatched.Read();
   if (NorthLatched) {
     North_Winter_Latch.Write(lr_No_Request);
-    Outputs.NorthThrusterTx.Thrust = 0;
+    Outputs.Thrusters[NORTH_INSTANCE].Thrust = 0;
   }
   else {
     North_Winter_Latch.Write(lr_Latch_Request);
@@ -234,7 +234,7 @@ void DoorStates::ST_LockOpenWinterDoors()
   bool SouthLatched = South_Winter_Lock_Open_IsLatched.Read();
   if (SouthLatched) {
     South_Winter_Latch.Write(lr_No_Request);
-    Outputs.SouthThrusterTx.Thrust = 0;
+    Outputs.Thrusters[SOUTH_INSTANCE].Thrust = 0;
   }
   else {
     South_Winter_Latch.Write(lr_Latch_Request);
@@ -243,16 +243,16 @@ void DoorStates::ST_LockOpenWinterDoors()
   if (SouthLatched && NorthLatched) {
     North_Winter_Latch.Write(lr_No_Request);
     South_Winter_Latch.Write(lr_No_Request);
-    Outputs.SouthThrusterTx.Thrust = 0;
-    Outputs.NorthThrusterTx.Thrust = 0;
+    Outputs.Thrusters[NORTH_INSTANCE].Thrust = 0;
+    Outputs.Thrusters[SOUTH_INSTANCE].Thrust = 0;
     OpenTimer.SetTimer(UPPER_DOORS_OPEN_TIME);
     InternalEvent(eST_OpenUpperDoors);
   }
   else if (OpenTimer.IsTimeout()) {
     North_Winter_Latch.Write(lr_No_Request);
     South_Winter_Latch.Write(lr_No_Request);
-    Outputs.SouthThrusterTx.Thrust = 0;
-    Outputs.NorthThrusterTx.Thrust = 0;
+    Outputs.Thrusters[NORTH_INSTANCE].Thrust = 0;
+    Outputs.Thrusters[SOUTH_INSTANCE].Thrust = 0;
     InternalEvent(eST_Error);
   }
 }
@@ -389,8 +389,8 @@ void DoorStates::ST_LatchWinterDoorsClosed()
 {
   if (Winter_Lock_Closed_IsLatched.Read()) {
     Center_Winter_Latch.Write(lr_No_Request);
-    Outputs.SouthThrusterTx.Thrust = 0;
-    Outputs.NorthThrusterTx.Thrust = 0;
+    Outputs.Thrusters[NORTH_INSTANCE].Thrust = 0;
+    Outputs.Thrusters[SOUTH_INSTANCE].Thrust = 0;
     InternalEvent(eST_IsClosed);
     OpenTimer.SetTimer(INFINITE);
   }
@@ -398,8 +398,8 @@ void DoorStates::ST_LatchWinterDoorsClosed()
     Center_Winter_Latch.Write(lr_Latch_Request);
     if (OpenTimer.IsTimeout()) {
       Center_Winter_Latch.Write(lr_No_Request);
-      Outputs.SouthThrusterTx.Thrust = 0;
-      Outputs.NorthThrusterTx.Thrust = 0;
+      Outputs.Thrusters[NORTH_INSTANCE].Thrust = 0;
+      Outputs.Thrusters[SOUTH_INSTANCE].Thrust = 0;
       InternalEvent(eST_Error);
     }
   }

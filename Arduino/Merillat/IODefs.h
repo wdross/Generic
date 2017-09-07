@@ -15,13 +15,12 @@
 #define ESD_SOUTH_DOOR_DIO_OUTPUTS 0x11
 #define ESD_SOUTH_DOOR_DIO_INPUTS 0x12
 #define ESD_SOUTH_DOOR_ANALOG 0x13
-#define IMTRA_PPC800_SOUTH 0x08FF0000L|IS_EXTENDED_COBID|0x120
+#define IMTRA_PPC800 0x08FF0000L|IS_EXTENDED_COBID
 // Existing South Hydraulic control box:
 #define ESD_SOUTH_HYDRAULIC 0x21
 // (New) North Door control box:
 #define ESD_NORTH_DOOR_DIO 0x31
 #define ESD_NORTH_DOOR_ANALOG 0x32
-#define IMTRA_PPC800_NORTH 0x08FF0000L|IS_EXTENDED_COBID|0x140
 // Existing North Hydraulic control box:
 #define ESD_NORTH_HYDRAULIC 0x41
 
@@ -30,23 +29,17 @@
 // Make up the COBIDs we'll need to go with the Inputs below
 #define SOUTHDOORDIO_RX_COBID    MK_COBID(ESD_SOUTH_DOOR_DIO_INPUTS,TXPDO1)
 #define SOUTHDOORANALOG_RX_COBID MK_COBID(ESD_SOUTH_DOOR_ANALOG,TXPDO2)
-#define SOUTHTHRUSTER_RX_COBID   (IMTRA_PPC800_SOUTH|RX_PGN) // Extended!
+#define THRUSTER_RX_COBID       (IMTRA_PPC800|RX_PGN) // Extended!
 #define NORTHDOORDIO_RX_COBID    MK_COBID(ESD_NORTH_DOOR_DIO,TXPDO1)
 #define NORTHDOORANALOG_RX_COBID MK_COBID(ESD_NORTH_DOOR_ANALOG,TXPDO2)
-#define NORTHTHRUSTER_RX_COBID   (IMTRA_PPC800_NORTH|RX_PGN) // Extended!
 #define NORTHHYDRAULIC_RX_COBID  MK_COBID(ESD_NORTH_HYDRAULIC,TXPDO1)
 // Outputs
 #define SOUTHDOORDIO_TX_COBID   MK_COBID(ESD_SOUTH_DOOR_DIO_OUTPUTS,RXPDO1)
-#define SOUTHTHRUSTER_TX_COBID  (IMTRA_PPC800_SOUTH)  // Extended!
+#define THRUSTER_TX_COBID       (IMTRA_PPC800)  // Extended!
 #define SOUTHHYDRAULIC_TX_COBID MK_COBID(ESD_SOUTH_HYDRAULIC,RXPDO1)
 #define NORTHDOORDIO_TX_COBID   MK_COBID(ESD_NORTH_DOOR_DIO,RXPDO1)
-#define NORTHTHRUSTER_TX_COBID  (IMTRA_PPC800_NORTH)  // Extended!
 #define NORTHHYDRAULIC_TX_COBID MK_COBID(ESD_NORTH_HYDRAULIC,RXPDO1)
 
-
-// ThrusterInstance field of PGN65280CanFrame
-#define SOUTH_THRUSTER_INSTANCE 0
-#define NORTH_THRUSTER_INSTANCE 0
 
 #define NO_ACTION 0 // (unused) Retract field of PGN65280CanFrame
 
@@ -56,32 +49,47 @@
 #define PORT 2
 
 
+struct FC_SN {
+  unsigned int SN:3; // Sequence Number
+  unsigned int FC:5; // Frame Counter
+};
+
 struct PGN130817 {
-  unsigned int ManufacturerCode:11;
-  unsigned int ReservedA:2; // 0x3
-  unsigned int IndustryGroup:3;
+  // Pages 15..16 of "S-link Gateway 01_0_confidential_2016_LR.pdf"
+  CFwTimer LastRxTime;
 
-  unsigned int SleipnerDeviceType:8;
-  unsigned int SleipnerDeviceInstance:4;
-  unsigned int ReservedB:4; // 0xf
+  struct FC_SN fc_sn;
 
-  unsigned int Status:16;
+  INT8U        NDB; // Number of Data Bytes to be sent/received
 
-  unsigned int ThrusterMotorTemperature:8;
-  unsigned int ThrusterPowerTemperature:8;
+  INT16U       ManufacturerCode:11; //      #1
+  INT16U       ReservedA:2; // 0x3          #2
+  INT16U       IndustryGroup:3; //          #3
 
-  unsigned int MotorVoltage:16; // 0.01v
+  INT8U        SleipnerDeviceType; //       #4
 
-           int MotorRPM:16; // Not implemented, 1/4RPM
+  INT16U       SleipnerDeviceInstance:4; // #5
+  INT16U       ReservedB:4; // 0xf          #6
 
-  unsigned int MotorCurrent:16;
+  INT16U       Status; //                   #7
 
-  unsigned int OutputThrust:8;
+  INT8U        ThrusterMotorTemperature; // #8
+  INT8U        ThrusterPowerTemperature; // #9
+
+  INT8U        ReservedC; //               #10
+
+  INT16U       MotorVoltage; // 0.01v      #11
+
+  INT16U       MotorRPM; // N/A, 1/4RPM,   #12
+
+  INT16U       MotorCurrent; //            #13
+
+  INT8U        OutputThrust; //            #14
 }; // PGN130817 (multi-part message received from each PPC800)
 
 struct PGN130817CanFrames {
-  unsigned int FC:5;
-  unsigned int SN:3;
+  struct FC_SN fc_sn;
+
   union {
     struct {
       unsigned int NBD:8;                      // LSBits
@@ -108,6 +116,9 @@ struct PGN130817CanFrames {
   };
 }; // union of 3 sequential frames to Receive
 
+// ThrusterInstance field of PGN65280CanFrame and index into array
+enum {INPUT_INSTANCE, NORTH_INSTANCE, SOUTH_INSTANCE, NUM_INSTANCES};
+
 struct PGN65280CanFrame {
   unsigned int ManufactureCode:11;
   unsigned int Reserved:2;
@@ -129,8 +140,8 @@ struct InputType {
 
   // Will receive PGN130817 every 100ms
   union {
-    INT8U SouthThruster_Rx[8];
-    struct PGN130817CanFrames SouthThrusterRx;
+    INT8U Thruster_Rx[8];
+    struct PGN130817CanFrames ThrusterRx;
   };
 
   // South Hydraulic doesn't have Inputs
@@ -138,13 +149,9 @@ struct InputType {
   INT8U NorthDoorDIO_Rx;
   INT16S NorthDoorAnalog_Rx[2];
 
-  // Will receive PGN130817 every 100ms
-  union {
-    INT8U NorthThruster_Rx[8];
-    struct PGN130817CanFrames NorthThrusterRx;
-  };
-
   INT8U NorthHydraulic_Rx;
+
+  PGN130817 Thrusters[NUM_INSTANCES]; // AssembleBuffer, North, South (Instance ID of Sleipner frame)
 };
 
 enum LatchRequestType {lr_No_Request, lr_Unlatch_Request, lr_Latch_Request};
@@ -155,8 +162,8 @@ struct OutputType {
 
   // PPC needs a heartbeat of PGN65280CanFrame every 100ms (300ms timeout)
   union {
-    INT8U SouthThruster_Tx[8];
-    struct PGN65280CanFrame SouthThrusterTx;
+    INT8U Thruster_Tx[8];
+    struct PGN65280CanFrame ThrusterTx;
   };
 
   INT8U SouthHydraulic_Tx;
@@ -165,13 +172,10 @@ struct OutputType {
   INT8U NorthDoorDIO_Tx;
 #define NORTHDOOR_OUTPUT_MASK 0x83
 
-  union {
-    INT8U NorthThruster_Tx[8];
-    struct PGN65280CanFrame NorthThrusterTx;
-  };
-
   INT8U NorthHydraulic_Tx;
 #define NORTHHYDRAULIC_OUTPUT_MASK 0x83
+
+  struct PGN65280CanFrame Thrusters[NUM_INSTANCES]; // Unused, North, South (Instance ID of Sleipner frame)
 };
 
 enum DoorEnum {deWinterSouthDoor, deWinterNorthDoor, deUpperSouthDoor, deUpperNorthDoor, deNUM_DOORS};

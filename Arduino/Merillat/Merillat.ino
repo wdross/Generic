@@ -340,10 +340,55 @@ void EEDisplay() {
   Serial.print(myEE.CheckSum,HEX);
   Serial.print("  ");
   if (CalcChecksum((INT8U*)&myEE.Data,sizeof(myEE.Data)) == myEE.CheckSum)
-    Serial.print("OK");
+    Serial.println("OK");
   else
-    Serial.print("bad");
+    Serial.println("bad");
 }
+
+
+void ThrusterParser() {
+  static int LastFC = -1; // invalid
+  // just received a CAN frame into Inputs.ThrusterRx.*
+  // depending upon the state of things, we'll be either starting to parse a new message
+  // (when SN/SequenceNumber == 0) or processing the next packet in a series (we see the 
+  // same FC/FrameCounter with the next sequential SN)
+
+  // Assemble frame into Inputs.Thrusters[0] (3 service calls to get a whole one)
+  // Then copy Inputs.Thrusters[0] into [1] or [2] based upon InstanceID
+
+  if (Inputs.ThrusterRx.fc_sn.SN == 0) {
+    // start of frame sequence
+    if (Inputs.ThrusterRx.NBD == 16) {
+      // correct size, this is the first of a 3 frame sequence we need
+      Inputs.Thrusters[0].LastRxTime.SetTimer(0); // record 'now'
+      memcpy(&Inputs.Thrusters[0].fc_sn,&Inputs.ThrusterRx.fc_sn,8); // all 8 bytes, gets FrameCounter & SequenceNumber too
+    }
+  }
+  else if (Inputs.ThrusterRx.fc_sn.FC == Inputs.Thrusters[0].fc_sn.FC &&
+           Inputs.ThrusterRx.fc_sn.SN == Inputs.Thrusters[0].fc_sn.SN+1) {
+    // Next message in sequence, retain bytes
+    byte *dst = (byte*)&Inputs.Thrusters[0].NDB; // point to base target
+    dst += 7*Inputs.ThrusterRx.fc_sn.SN; // increment by SequenceNumber we're getting
+    Inputs.Thrusters[0].fc_sn = Inputs.ThrusterRx.fc_sn; // capture new FrameCounter & SequenceNumber
+    memcpy(dst,&Inputs.Thruster_Rx[1],7); // skip FC & SN
+    if (Inputs.Thrusters[0].fc_sn.SN == 2 && // last Sequence Number
+        Inputs.Thrusters[0].SleipnerDeviceInstance > 0 && // valid Instance number
+        Inputs.Thrusters[0].SleipnerDeviceInstance < 3) {
+      // last frame, copy it over
+      Inputs.Thrusters[Inputs.Thrusters[0].SleipnerDeviceInstance] = Inputs.Thrusters[0];
+#if 0
+      char line[100];
+      sprintf(line,"NDB=%d, MC=%d, IG=%d, Sdt=%d Sdi=%d Status=%d, MT=%d PT=%d, V=%d, Amps=%d, OpenThrust=%d",
+              Inputs.Thrusters[0].NDB,Inputs.Thrusters[0].ManufacturerCode,Inputs.Thrusters[0].IndustryGroup,
+              Inputs.Thrusters[0].SleipnerDeviceType,Inputs.Thrusters[0].SleipnerDeviceInstance,Inputs.Thrusters[0].Status,
+              Inputs.Thrusters[0].ThrusterMotorTemperature,Inputs.Thrusters[0].ThrusterPowerTemperature,Inputs.Thrusters[0].MotorVoltage,
+              Inputs.Thrusters[0].MotorCurrent,Inputs.Thrusters[0].OutputThrust);
+      Serial.println(line);
+#endif
+      Inputs.Thrusters[0].fc_sn.FC = -1; // tag such that can't accept another packet
+    }
+  }
+} // ThrusterParser
 
 #define MY_EEPROM_SIGNATURE "$EEM"
 INT8U MyConstState = 0x5; // broadcasts "I'm Operational"
@@ -360,12 +405,6 @@ void setup()
       delay(100);
   }
   Serial.println("CAN BUS Shield init ok!");
-
-#ifdef SPI_HAS_TRANSACTION
-  Serial.println("#ifdef SPI_HAS_TRANSACTION");
-#else
-  Serial.println("no TRANSACTIONS");
-#endif
 
   memset(&myEE,0,sizeof(myEE)); // wipe it all out, makes !Valid too
   if (EEPROM.length() >= sizeof(myEE)) {
