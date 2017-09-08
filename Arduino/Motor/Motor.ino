@@ -25,8 +25,9 @@ int in2Pin = 9;
 #define UNLATCH_REQUEST     12
 
 
-#define BATHROOM_OPEN_DELAY 750
+#define BATHROOM_OPEN_DELAY 850
 #define LAUNDRY_OPEN_DELAY BATHROOM_OPEN_DELAY
+#define MAXIMUM_TRAVEL_TIME 4800
 
 
 // I/O that go to other components on our breadboard
@@ -143,11 +144,26 @@ void loop()
   bathroom->Process();
   laundry->Process();
 
-  // the limit switches below the drawer will roll on the bottom of the drawer.
-  // when the drawer is centered, both switches will be pressed (0's)
-  // as the drawer opens in a direction (i.e. ddBathroom), the bathroomDrawerLimitSwitch
-  // will be seen as going from a 0 to a 1 just a fraction of an inch before the end of travel
-  // likewise going into the ddLaundry direction (laundryDrawerLimitSwitch)
+  // The three limit switches below the drawer will roll on the bottom of the drawer.
+  // Centered:
+  // - When the drawer is centered, we'll see !centeredDrawerLimitSwitch->GetState()
+  // - This switch triggers on the laundry room edge of the drawer (plus a small block
+  //   that yields ~1.25" of travel) that will close the limit switch
+  // Bathroom:
+  // - As the drawer opens in a direction (i.e. ddBathroom), the bathroomDrawerLimitSwitch
+  //   will be seen as going from a 0 (pushed) to a 1 (released) just a fraction of an inch
+  //   before the end of travel (as the drawer is pushed far enough to let the button up)
+  // - This limit switch rolls on the full edge of the drawer, so the switch is pressed
+  //   until just before the end of travel.
+  // - As the drawer opens the opposite direction (Laundry) this switch is also released
+  //   but is not used for any state machine decisions
+  // Laundry:
+  // - Likewise going into the ddLaundry direction (laundryDrawerLimitSwitch)
+  // - This switch runs on the opposide drawer edge and releases just prior to fully extended
+  //   to the Laundry room
+  // - This switch is also relelased as the drawer moves toward the Bathroom but is not used
+  //   for any state machine decisions
+  //
   bathroomDrawerLimitSwitch->Process();
   laundryDrawerLimitSwitch->Process();
   centeredDrawerLimitSwitch->Process();
@@ -336,9 +352,9 @@ void loop()
     static desiredDrawerEnum desiredDrawerLatch;
     // we have to move to fix this scenario
     if (desiredDrawer != desiredDrawerLatch) { // 1 scan edge of change
-      MaxTravelTimer.SetTimer(4000);
+      MaxTravelTimer.SetTimer(MAXIMUM_TRAVEL_TIME);
+      desiredDrawerLatch = desiredDrawer;
     }
-    desiredDrawerLatch = desiredDrawer;
 
     // we'll get the direction from where we are to where we want to be.
     // speed ends up being -1, +1, 0 (maybe +2 or -2, but state machine should prevent)
@@ -415,6 +431,9 @@ void loop()
     if (desiredDrawer == actualDrawer) {
       // just became correct state
       IgnoreSwitches.SetTimer(1250);
+      Serial.print("with ");
+      Serial.print(MaxTravelTimer.GetRemaining());
+      Serial.println("ms to spare");
     }
   } // desiredDrawer != actualDrawer
 
