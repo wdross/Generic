@@ -1,0 +1,5 @@
+35 teeth on gear
+7" circumference
+360/35 = 10.285714 deg/tooth
+0.045 flat, 0.155 open = 0.2" per tooth
+
