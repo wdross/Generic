@@ -1,9 +1,10 @@
+
 // Tools->Board: Arduino Duemilanove or Diecimila, ATmega328
 
 #include <CFwTimer.h>
 #include <CFwDebouncedDigitalInput.h>
 
-int enablePin = 11;
+int enablePin = 11; // PWM output for controlling voltage
 int in1Pin = 10;
 int in2Pin = 9;
 
@@ -18,11 +19,10 @@ int in2Pin = 9;
 #define FULLY_OPEN_BATHROOM PIN_A3
 #define CENTERED_DRAWER     PIN_A4
 
-#define ENCODER_A           6
-#define ENCODER_B           7
-
 // Upper Drawer
-#define UNLATCH_REQUEST     12
+#define UNLATCH_REQUEST     12 // this is the easily accessible button
+#define REPROGRAM_REQUEST    6  // this is the in-drawer button
+#define REPROGRAM_ACKNOWLEDGE 7 // this is the in-drawer indicator of reprogramming active
 
 
 #define BATHROOM_OPEN_DELAY 850
@@ -36,14 +36,6 @@ int in2Pin = 9;
 #define LED_PIN 13 // The built in LED
 
 
-#define ENCODER_OPTIMIZE_INTERRUPTS
-#include <Encoder.h>
-Encoder encoder(ENCODER_A, ENCODER_B);
-int32_t lastEncoder = 0;
-CFwTimer lastEncoderDisplay(0);
-#define ENCODER_OUTPUT_NOFASTER_THAN 1000
-bool encoderWorking = false; // by default, assume that darn encoder doesn't work
-
 // We'll have the desired state of the drawer be encapsulated by the
 // value of desiredDrawer: 1=Bathroom; 0=Centered/Closed; -1:Laundry
 enum desiredDrawerEnum { ddBathroom=-1, ddCentered, ddLaundry } desiredDrawer = ddCentered;
@@ -54,19 +46,6 @@ CFwTimer WaitBeforeMoveTimer;
 CFwTimer IgnoreSwitches;
 bool laundryEverReleased;
 enum { waitingForClosed, delayOpening, isClosed, isOpening, waitingForPress, waitingForRelease } inputState = waitingForClosed;
-
-
-// We need 19.5" of travel in either positive or negative direction,
-// depending upon switch activation.  With our 22 tooth pulley (exactly 4.4" circumference),
-// we need 19.5/4.4 = 4.43 revolutions on our 8192 cpr encoder, yielding a movement of 36305 counts
-#define IDLER_PULLEY_TOOTH_COUNT 22.0
-// Our belt has 5 teeth for every inch, so 0.2"/tooth
-#define IDLER_PULLEY_CIRCUMFERENCE (0.2*IDLER_PULLEY_TOOTH_COUNT) // 4.4 inches
-#define CPI (8192.0/IDLER_PULLEY_CIRCUMFERENCE) // 1861.8 counts in an inch of movement
-#define DESIRED_MOVEMENT (19.5*CPI) // 36305
-#define COUNTS_TO_INCHES(counts) (counts/CPI)
-
-
 
 
 CFwDebouncedDigitalInput* bathroom;
@@ -83,13 +62,16 @@ int LatchState = 0; // 0 = Latched (unpowered); 1 = UnLatched (powered)
 void setup()
 {
   // initialize pin modes first
-  pinMode(LED_PIN, OUTPUT); 
+  pinMode(LED_PIN, OUTPUT);
   pinMode(in1Pin, OUTPUT);
   pinMode(in2Pin, OUTPUT);
   pinMode(enablePin, OUTPUT);
 
   pinMode(UNLATCH_ENABLE_OUT,OUTPUT);
   pinMode(UNLATCH_REQUEST, INPUT_PULLUP);
+
+  pinMode(REPROGRAM_REQUEST,INPUT_PULLUP);
+  pinMode(REPROGRAM_ACKNOWLEDGE,OUTPUT);
 
   // Open serial communications and wait for port to open:
   Serial.begin(115200);
@@ -124,13 +106,6 @@ void loop()
   if (Serial.available()) {
     // This will become the center switch detection
     char input = Serial.read();
-    if (input == 'r') { // reset
-      encoder.write(0);
-    }
-    else if (input == 's') { // show
-      lastEncoderDisplay.SetTimer(0); // immediate timeout
-      lastEncoder =  encoder.read() + 2000; // force large difference
-    }
   }
 
   // we'll build this input state machine upon the following premise:
@@ -200,8 +175,6 @@ void loop()
 #endif
     lastGo = thisGo;
   }
-
-  int32_t newEncoder = encoder.read();
 
 #if defined(JUST_IN_OUT_SWITCHES)
   if (!bathroom->GetState())
@@ -273,12 +246,12 @@ void loop()
                   break;
               } // watchingSide
               break;
-    
+
             default:
               inputState = waitingForClosed;
           } // inputState while Centered
           break;
-    
+
         case ddBathroom:
           // drawer is extending/moving into the bathroom, or already fully extended into the bathroom
           switch (inputState) {
@@ -307,7 +280,7 @@ void loop()
               }
           } // inputState of ddBathroom
           break;
-    
+
         case ddLaundry:
           // drawer is extending/moving into the laundry, or already fully extended into the laundry
           switch (inputState) {
@@ -342,10 +315,6 @@ void loop()
     speed = 0;
   }
   else { // desiredDrawer != actualDrawer
-    
-    // we learned that a constant update of a digital output (our status LED for one)
-    // seems to cause a miscount of the encoder.read().  Might be attributed to accessing
-    // the port for an output bit doesn't correctly handle adjacent bits that are inputs.
 
     // now that we know what the switches want us to do, let's actually get
     // that drawer moved to make actualDrawer match desiredDrawer
@@ -395,37 +364,10 @@ void loop()
       actualDrawer = desiredDrawer;
       speed = 0;
     }
-    if (desiredDrawer != ddCentered) {
-      if (abs(newEncoder) >= DESIRED_MOVEMENT) {
-        Serial.println("\n\rOutward travel complete"); 
-        actualDrawer = desiredDrawer;
-        speed = 0;
-        encoderWorking = true;
-      }
-    }
-    // when returning to center, accept a band in the middle or crossing zero as complete
-    if (encoderWorking && desiredDrawer == ddCentered && (abs(newEncoder) < 1000 || (newEncoder<0) != (actualDrawer<0))) {
-      Serial.println("\n\rCentered"); 
-      actualDrawer = desiredDrawer;
-      speed = 0;
-    }
     if (speed) {
       // still want to move, calculate velocity based upon range
-      // compute remaining distance and set velocity based on range to target
-      // range will be positive when matching desired direction of travel, negative on overshoot
-      int32_t range = newEncoder - desiredDrawer * DESIRED_MOVEMENT;
 #define MAX_SPEED 255 // largest PWM rate out of analogWrite()
-#define RAMP_LENGTH (5*CPI) // 2" of counts = 3724
-#define RAMP_MIN (100)
-      // if range is over RAMP_LENGTH, use max speed
       int velocity = MAX_SPEED;
-//      if (abs(range)<RAMP_LENGTH) {
-//        // below RAMP_LENGTH, taper down to RAMP_MIN
-//        // formula that works in Excel:
-//        // =-(D5/RAMP_LENGTH*(MAX_SPEED-RAMP_MIN)-RAMP_MIN*B5)
-//        BUT also need to gate on encoderWorking
-//        velocity = -(range/RAMP_LENGTH * (MAX_SPEED - RAMP_MIN) - RAMP_MIN*speed);
-//      }
       speed *= velocity; // if we overshoot, there could be a sign change as velocity will be negative
     }
     if (desiredDrawer == actualDrawer) {
@@ -447,29 +389,19 @@ void loop()
   setMotor(abs(speed), speed<0);
 
 
-  
-  int32_t diff = newEncoder - lastEncoder;
-  if (abs(diff) > 100 &&
-      lastEncoderDisplay.IsTimeout()) {
-    Serial.print("\n\rInch = "); // don't cover up our other diagnostic
-    Serial.print(COUNTS_TO_INCHES(newEncoder),2);
-    Serial.print("  diff=");
-    Serial.print(COUNTS_TO_INCHES(diff),2);
-    lastEncoder = newEncoder;
-    lastEncoderDisplay.SetTimer(ENCODER_OUTPUT_NOFASTER_THAN);
-  }
-
   // tie the desire to UNLATCH (UNLATCH_REQUEST) to the PWM enable output
   // The multiply by the digitalRead() forces a zero request
   int unlatch = !digitalRead(UNLATCH_REQUEST); // 0 or 1
   static int unlatch_LAST = 0;
   if (unlatch != unlatch_LAST &&
-      unlatch)
+      unlatch) {
     LatchState = 1; // rising edge, request unlatch
+    Serial.println("Unlatch requested");
+  }
   unlatch_LAST = unlatch;
 
 
-  
+
   // Solinoid needs 9-12v, but emperical study sees we need to ask the motor
   // controller for at least 17v (180) in order to move the latch.  We back
   // off after that, to 12v
@@ -477,15 +409,18 @@ void loop()
   if (LatchState) {
     if (!_Last_LatchState) {
       // rising edge of an unlatch
-      LatchTimer.SetTimer(100); // higher voltage for this amount of ms
+      LatchTimer.SetTimer(150); // higher voltage for this amount of ms
     }
-    if (LatchTimer.GetExpiredBy() > 3000)
+    if (LatchTimer.GetExpiredBy() > 2000) {
       LatchState = 0;
+      Serial.println("Unlatch timer expired");
+    }
   }
   _Last_LatchState = LatchState;
-//  digitalWrite(LED_PIN, LatchState);
-  int ana = (LatchTimer.IsTiming()?190:127) * LatchState; // 180=17v for until Timer expired, then 127=12v
+  int ana = (LatchTimer.IsTiming()?200:127) * LatchState; // 180=17v for until Timer expired, then 127=12v
   analogWrite(UNLATCH_PWM,ana);
   digitalWrite(UNLATCH_ENABLE_OUT,LatchState?HIGH:LOW); // opposite state
-}
 
+  // testing the Reprogramming I/O
+  digitalWrite(REPROGRAM_ACKNOWLEDGE,!digitalRead(REPROGRAM_REQUEST));
+}
