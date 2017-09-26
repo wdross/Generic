@@ -301,7 +301,10 @@ void CanPollDisplay(int io)
       if (CanOutBuffers[j].Can.COBID) {
         Serial.print("[");
         Serial.print(j);
-        Serial.print("]\t0x");
+        if (CanOutBuffers[j].Can.COBID & 0xfff00000l)
+          Serial.print("] 0x");
+        else
+          Serial.print("]\t0x");
         Serial.print(CanOutBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
@@ -313,7 +316,11 @@ void CanPollDisplay(int io)
         Serial.print(CanOutBuffers[j].NextSendTime.getEndTime());
         if (CanOutBuffers[j].Can.Length) {
           Serial.print("\t[");
-          Serial.print(CanOutBuffers[j].Can.pMessage[0],HEX);
+          for (int k=0; k<CanOutBuffers[j].Can.Length; k++) {
+            Serial.print(CanOutBuffers[j].Can.pMessage[k],HEX);
+            if (k<CanOutBuffers[j].Can.Length-1)
+              Serial.print(" ");
+          }
           Serial.print("]");
         }
         Serial.println();
@@ -329,7 +336,10 @@ void CanPollDisplay(int io)
       if (CanInBuffers[j].Can.COBID) {
         Serial.print("[");
         Serial.print(j);
-        Serial.print("]\t0x");
+        if (CanInBuffers[j].Can.COBID & 0xfff00000l)
+          Serial.print("] 0x");
+        else
+          Serial.print("]\t0x");
         Serial.print(CanInBuffers[j].Can.COBID&COB_ID_MASK,HEX);
         Serial.print("\t");
         Serial.print(CanInBuffers[j].Can.Length);
@@ -340,7 +350,7 @@ void CanPollDisplay(int io)
         if (CanInBuffers[j].Can.Length) {
           Serial.print("\t[");
           for (int k=0; k<CanInBuffers[j].Can.Length; k++) {
-            Serial.print(CanInBuffers[j].Can.pMessage[0],HEX);
+            Serial.print(CanInBuffers[j].Can.pMessage[k],HEX);
             if (k<CanInBuffers[j].Can.Length-1)
               Serial.print(" ");
           }
