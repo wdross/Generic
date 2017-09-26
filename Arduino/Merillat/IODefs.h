@@ -27,12 +27,12 @@
 #define RX_PGN 0x11000100L // turning on these bits max the RX PGN
 
 // Make up the COBIDs we'll need to go with the Inputs below
-#define SOUTHDOORDIO_RX_COBID    MK_COBID(ESD_SOUTH_DOOR_DIO_INPUTS,TXPDO1)
-#define SOUTHDOORANALOG_RX_COBID MK_COBID(ESD_SOUTH_DOOR_ANALOG,TXPDO2)
-#define THRUSTER_RX_COBID       (IMTRA_PPC800|RX_PGN) // Extended!
-#define NORTHDOORDIO_RX_COBID    MK_COBID(ESD_NORTH_DOOR_DIO,TXPDO1)
-#define NORTHDOORANALOG_RX_COBID MK_COBID(ESD_NORTH_DOOR_ANALOG,TXPDO2)
-#define NORTHHYDRAULIC_RX_COBID  MK_COBID(ESD_NORTH_HYDRAULIC,TXPDO1)
+#define SOUTHDOORDIO_RX_COBID    MK_COBID(ESD_SOUTH_DOOR_DIO_INPUTS,TXPDO1) // 0x192
+#define SOUTHDOORANALOG_RX_COBID MK_COBID(ESD_SOUTH_DOOR_ANALOG,TXPDO2)     // 0x293
+#define THRUSTER_RX_COBID       (IMTRA_PPC800|RX_PGN) // Extended!        0x19FF0100
+#define NORTHDOORDIO_RX_COBID    MK_COBID(ESD_NORTH_DOOR_DIO,TXPDO1)        // 0x1B1
+#define NORTHDOORANALOG_RX_COBID MK_COBID(ESD_NORTH_DOOR_ANALOG,TXPDO2)     // 0x2B2
+#define NORTHHYDRAULIC_RX_COBID  MK_COBID(ESD_NORTH_HYDRAULIC,TXPDO1)       // 0x1C1
 // Outputs
 #define SOUTHDOORDIO_TX_COBID   MK_COBID(ESD_SOUTH_DOOR_DIO_OUTPUTS,RXPDO1)
 #define THRUSTER_TX_COBID       (IMTRA_PPC800)  // Extended!
@@ -47,7 +47,8 @@
 #define NO_DIRECTION 0
 #define STARBOARD 1
 #define PORT 2
-
+#define DIR_CLOSE STARBOARD
+#define DIR_OPEN  PORT
 
 struct FC_SN {
   unsigned int SN:3; // Sequence Number
@@ -160,12 +161,6 @@ struct OutputType {
   INT8U SouthDoorDIO_Tx; // ID11: 5 Out
 #define SOUTHDOOR_OUTPUT_MASK 0x8f
 
-  // PPC needs a heartbeat of PGN65280CanFrame every 100ms (300ms timeout)
-  union {
-    INT8U Thruster_Tx[8];
-    struct PGN65280CanFrame ThrusterTx;
-  };
-
   INT8U SouthHydraulic_Tx;
 #define SOUTHHYDRAULIC_OUTPUT_MASK 0x83
 
@@ -175,6 +170,7 @@ struct OutputType {
   INT8U NorthHydraulic_Tx;
 #define NORTHHYDRAULIC_OUTPUT_MASK 0x83
 
+  // PPC needs a heartbeat of PGN65280CanFrame every 100ms (300ms timeout)
   struct PGN65280CanFrame Thrusters[NUM_INSTANCES]; // Unused, North, South (Instance ID of Sleipner frame)
 };
 
@@ -203,7 +199,8 @@ extern OutputType Outputs;
 extern InputType  Inputs;
 
 // Dimensional defines, defines decision points
-#define MIN_THRUST 50 // 1024ths thrust
+#define MIN_THRUST 50  // 1024ths thrust
+#define MAX_THRUST 512 // 1024ths thrust
 
 #endif // IODEFS_INCLUDED
 

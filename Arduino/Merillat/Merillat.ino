@@ -257,12 +257,6 @@ void EESettings() {
     myGLCD.print("+",Touches[j].X,Touches[j].Y);
   }
 
-  // just print what we're looking for
-  for (int i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++) {
-    Serial.print("["); Serial.print(i); Serial.print("] (");
-    Serial.print(Touches[i].X); Serial.print(","); Serial.print(Touches[i].Y); Serial.println(")");
-  }
-
   while (Activity.IsTiming()) {
     for (int i=0; i<4; i++) {
       char value[12];
@@ -300,8 +294,6 @@ void EESettings() {
 
     if (ToucherLoop(X,Y)) {
       Activity.ResetTimer(); // restart counting from 'now'
-      sprintf(digits,"  %d,%d  ",X,Y);
-      myGLCD.print(digits,CENTER,1); // top of screen
       for (int i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++) {
         // which one are we touching closest to?
         if (Touches[i].fo &&
@@ -452,20 +444,19 @@ void setup()
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
   CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
   CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
-//  CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx);
+  CanPollSetRx(THRUSTER_RX_COBID,       sizeof(Inputs.Thruster_Rx),       (INT8U*)&Inputs.Thruster_Rx,      ThrusterParser);
   CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
   CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
-//  CanPollSetRx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx);
   CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
 
   // Data we'll transmit (evenly spaced) every CAN_TX_INTERVAL ms
   //           COBID,                  NumberOfBytesToTransmit,          AddressOfDataToTransmit            MaskOfDigitalOutputs
   CanPollSetTx(0x80,                   0,                                NULL,                              0);
   CanPollSetTx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx,  SOUTHDOOR_OUTPUT_MASK);
-  CanPollSetTx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), (INT8U*)&Outputs.SouthThruster_Tx, 0);
+  CanPollSetTx(THRUSTER_TX_COBID,      sizeof(Outputs.Thrusters[SOUTH_INSTANCE]), (INT8U*)&Outputs.Thrusters[SOUTH_INSTANCE], 0);
   CanPollSetTx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx,SOUTHHYDRAULIC_OUTPUT_MASK);
   CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx,  NORTHDOOR_OUTPUT_MASK);
-  CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx, 0);
+  CanPollSetTx(THRUSTER_TX_COBID,      sizeof(Outputs.Thrusters[NORTH_INSTANCE]), (INT8U*)&Outputs.Thrusters[NORTH_INSTANCE], 0);
   CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NORTHHYDRAULIC_OUTPUT_MASK);
   CanPollSetTx(0x701,                  1,                                &MyConstState,                     0); // This will serve as a HeartBeat
 
@@ -519,6 +510,7 @@ void loop()
 
 
 #ifdef DO_LOGGING
+#error Undefine that DO_LOGGING in libraries\CanOpen\CanOpen.h to see anything on the GUI!
   if (Head != Tail) {
     // not caught up, print out the next message we have
     Tail = (Tail + 1) % NUM_BUFFS;
