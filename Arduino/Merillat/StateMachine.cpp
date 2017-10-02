@@ -34,7 +34,8 @@ void StateMachine::InternalEvent(unsigned char newState,
 {
     _pEventData = pData;
     _eventGenerated = true;
-    _previousState = currentState;
+    if (currentState != newState) // actually transitioning to a new state
+      _previousState = currentState;
     currentState = newState;
 }
 
