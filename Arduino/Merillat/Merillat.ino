@@ -274,13 +274,13 @@ void EESettings() {
         else
           myGLCD.setColor(RED);
 
-        sprintf(value,"%5d",DoorInfo[i].Position->Value());
+        sprintf(value,"%6d",DoorInfo[i].Position->Value());
       }
       int X;
       if (col) // RIGHT
-        X = MAX_X - 10 * myGLCD.getFontWidth();
+        X = MAX_X - 11 * myGLCD.getFontWidth();
       else // LEFT
-        X = 5 * myGLCD.getFontWidth();
+        X = 4 * myGLCD.getFontWidth();
       myGLCD.print(value,X,DoorInfo[i].Y - myGLCD.getFontHeight());
     }
     char digits[20];
@@ -551,6 +551,19 @@ void loop()
   int X,Y; // place to put ToucherLoop() results
   if (!HaveComm) {
     static bool lastToggle = true;
+#define TIMEOUT_GUI_UPDATE 750
+    if (ToucherLoop(X,Y)) {
+      if (GUITimer.GetRemaining() <= TIMEOUT_GUI_UPDATE*2) {
+        // first press, set up for nice, continually updating display
+        myGLCD.clrScr(); // black
+        myGLCD.setColor(WHITE);
+        myGLCD.setBackColor(BLACK);
+        myGLCD.print("ModuleID  Message late by (ms)",0,myGLCD.getFontHeight());
+        myGLCD.print("'----' means CAN module is not talking",0,MAX_Y-myGLCD.getFontHeight());
+      }
+      GUITimer.SetTimer(60000);
+    }
+
     if (GUITimer.IsTimeout()) {
       static int mX = 0;
       static int mY = 0;
@@ -573,7 +586,27 @@ void loop()
       mY += myGLCD.getFontHeight();
       mY = mY % (MAX_Y-myGLCD.getFontHeight());
       myGLCD.print(MISSING,mX,mY);
-      GUITimer.IncrementTimerUnlessWayBehind(750);
+      GUITimer.IncrementTimerUnlessWayBehind(TIMEOUT_GUI_UPDATE);
+    }
+    else if (GUITimer.GetRemaining() > TIMEOUT_GUI_UPDATE*2) {
+      // more than a second, so we were/are looking at NodeIDs and last response timers
+      // just always repaint everything -- see how it behaves
+      for (int j=0; j<NUM_IN_BUFFERS; j++) {
+        if (CanInBuffers[j].Can.COBID) {
+          char rxBuf[45];
+          long elapsed = CanPollElapsedFromLastRxByIndex(j);
+          sprintf(rxBuf,"      %02X  %6d",CanInBuffers[j].Can.COBID&0x7f,elapsed);
+          if (elapsed > NOT_TALKING_TIMEOUT)
+            strcpy(&rxBuf[12],"----");
+          if (CanInBuffers[j].Can.COBID&IS_EXTENDED_COBID)
+            strcpy(&rxBuf[16],"  S-Link gateway");
+          myGLCD.print(rxBuf, 0, myGLCD.getFontHeight()*(j+2));
+        }
+      }
+    }
+    else if (GUITimer.GetRemaining() > TIMEOUT_GUI_UPDATE) {
+      // we were watching things, now go to blank screen
+      myGLCD.clrScr(); // black
     }
   }
   else { // HaveComm, see about updating any changed elements
