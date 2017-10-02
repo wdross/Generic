@@ -547,6 +547,8 @@ void loop()
     LastComm = HaveComm;
     PaintStatics = HaveComm; // draw all if we just got Comm
   }
+
+  int X,Y; // place to put ToucherLoop() results
   if (!HaveComm) {
     static bool lastToggle = true;
     if (GUITimer.IsTimeout()) {
@@ -557,7 +559,7 @@ void loop()
       static int mlen = strlen(MISSING);
       myGLCD.setColor(BLACK);
       myGLCD.setBackColor(BLACK);
-      myGLCD.print(MISSING,mX,mY);
+      myGLCD.print(MISSING,mX,mY); // erase old message (BLACK/BLACK on BLACK)
       if (lastToggle) {
         myGLCD.setColor(RED);
         myGLCD.setBackColor(GREEN);
@@ -752,15 +754,29 @@ void loop()
       myGLCD.print(digits,RIGHT,myGLCD.getFontHeight()*2);
     }
 
-    int X,Y;
-    if (ToucherLoop(X,Y)) {
-      if (GUITimer.IsTiming() && // screen saver isn't running
-          abs(X - MAX_X/2) < 30 &&
-          abs(Y - 2*MAX_Y/3) < 30) {
+    if (GUITimer.IsTiming() &&   // screen saver isn't running
+        ToucherLoop(X,Y,1000) && // pressed for a second
+        abs(X - MAX_X/2) < 30) { // tight in center left to right
+      if (abs(Y - 3*MAX_Y/5) < 30) { // below center
         EESettings(); // gets stuck in here for a long time
         PaintStatics = 2; // redraw the main screen when we return
       }
+      else if (abs(Y - myGLCD.getFontHeight()*3) < 30) {
+        // upper button, "Open"
+        g_pDoorStates->Touch_IsRequestingOpen = true;
+      }
+      else if (abs(Y - myGLCD.getFontHeight()*6) < 30) {
+        // lower button, "Close"
+        g_pDoorStates->Touch_IsRequestingClose = true;
+      }
+    }
+    else if (ToucherLoop(X,Y)) {
       BUMP_GUI_TIMER; // prevent or wake up from sleep
+    }
+    else { // no touching
+      // clear button flags
+      g_pDoorStates->Touch_IsRequestingOpen = false;
+      g_pDoorStates->Touch_IsRequestingClose = false;
     }
 
     if (PaintStatics) {
@@ -773,6 +789,9 @@ void loop()
       myGLCD.setBackColor(64, 64, 64);
       myGLCD.print("Wayne Ross", LEFT, MAX_Y-12);
       myGLCD.print("(C)2017", RIGHT, MAX_Y-12);
+      myGLCD.setColor(WHITE);
+      myGLCD.setBackColor(BLACK);
+      myGLCD.print("C",MAX_X/2-myGLCD.getFontWidth()/2,3*MAX_Y/5-myGLCD.getFontHeight()/2);
       PaintStatics--; // should end up with 2 passes to draw everything back
     }
     if (GUITimer.IsTimeout() && !Cleared) {
