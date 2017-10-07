@@ -46,6 +46,7 @@ InputType  Inputs;
 
 struct LastCoords {
   int X,Y;
+  int TX,TY; // where to draw thruster indicator on winter doors
 } LeftDoor, RightDoor, NewLeftDoor, NewRightDoor,
   UpperLeftDoor, UpperRightDoor, NewUpperLeftDoor, NewUpperRightDoor;
 
@@ -619,16 +620,28 @@ void loop()
     NewLeftDoor.Y += lDoorY; // add in our offset, same for left and right
     NewLeftDoor.X += lDoorX;
 #define DOOR_CHANGE 2 // more than this many pixels change before we draw it
+#define THRUST_X 3
+#define THRUST_Y 2
+    static unsigned int LastDir[3] = {0,0,0}; // unused, North, South
     if (PaintStatics ||
         abs(NewLeftDoor.X - LeftDoor.X) > DOOR_CHANGE ||
         abs(NewLeftDoor.Y - LeftDoor.Y) > DOOR_CHANGE) {
       // erase previous door position (in black)
       myGLCD.setColor(BLACK);
+      myGLCD.setBackColor(BLACK);
       myGLCD.drawLine(lDoorX,lDoorY,LeftDoor.X,LeftDoor.Y);
+      myGLCD.print(" ",LeftDoor.TX,LeftDoor.TY); // erase any active thruster indicator
       // draw new positions in Green
       myGLCD.setColor(GREEN);
       myGLCD.drawLine(lDoorX, lDoorY,NewLeftDoor.X,NewLeftDoor.Y);
+      // Where does Thruster indicator belong?
+      NewLeftDoor.TY = -sin(SouthAngle)*doorLen*3/4; // 3/4 of the way out along the door
+      NewLeftDoor.TX = cos(SouthAngle)*doorLen*3/4; // run
+      NewLeftDoor.TY += lDoorY + THRUST_Y; // add in our offset, same for left and right
+      NewLeftDoor.TX += lDoorX + THRUST_X;
+
       LeftDoor = NewLeftDoor;
+      LastDir[SOUTH_INSTANCE] = 5; // invalid, forcing a re-draw below
       BUMP_GUI_TIMER;
     }
 
@@ -640,12 +653,47 @@ void loop()
         abs(NewRightDoor.Y - RightDoor.Y) > DOOR_CHANGE) {
       // erase previous door position (in black)
       myGLCD.setColor(BLACK);
+      myGLCD.setBackColor(BLACK);
       myGLCD.drawLine(rDoorX,rDoorY,RightDoor.X,RightDoor.Y);
+      myGLCD.print(" ",RightDoor.TX,RightDoor.TY); // erase any active thruster indicator
       // draw new positions in Green
       myGLCD.setColor(GREEN);
       myGLCD.drawLine(rDoorX, rDoorY,NewRightDoor.X,NewRightDoor.Y);
+      // Where does Thruster indicator belong?
+      NewRightDoor.TY = -sin(NorthAngle)*doorLen*3/4; // rise
+      NewRightDoor.TY += rDoorY + THRUST_Y; // add in offset
+      NewRightDoor.TX = rDoorX - THRUST_X - myGLCD.getFontWidth() + cos(NorthAngle)*doorLen*3/4; // run
+
       RightDoor = NewRightDoor;
+      LastDir[NORTH_INSTANCE] = 5; // invalid, forcing a re-draw below
       BUMP_GUI_TIMER;
+    }
+
+    int dir = Outputs.Thrusters[SOUTH_INSTANCE].Direction | (Outputs.Thrusters[SOUTH_INSTANCE].Thrust << 2); // data tear
+    if (dir != LastDir[SOUTH_INSTANCE]) {
+      char Str[2] = {0,0}; // null string
+      char Text[] = " V^X";
+      sprintf(Str,"%c",Text[dir&0x3]);
+      if ((dir >> 2) > MIN_THRUST)
+        myGLCD.setColor(YELLOW);
+      else
+        myGLCD.setColor(GREEN);
+      myGLCD.setBackColor(BLACK);
+      myGLCD.print(Str,LeftDoor.TX,LeftDoor.TY);
+      LastDir[SOUTH_INSTANCE] = dir;
+    }
+    dir = Outputs.Thrusters[NORTH_INSTANCE].Direction | (Outputs.Thrusters[NORTH_INSTANCE].Thrust << 2); // data tear
+    if (dir != LastDir[NORTH_INSTANCE]) {
+      char Str[2] = {0,0}; // null string
+      char Text[] = " V^X";
+      sprintf(Str,"%c",Text[dir&0x3]);
+      if ((dir >> 2) > MIN_THRUST)
+        myGLCD.setColor(YELLOW);
+      else
+        myGLCD.setColor(GREEN);
+      myGLCD.setBackColor(BLACK);
+      myGLCD.print(Str,RightDoor.TX,RightDoor.TY);
+      LastDir[NORTH_INSTANCE] = dir;
     }
 
 #define UPPER_DOOR_OFFSET 2
