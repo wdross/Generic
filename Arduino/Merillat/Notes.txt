@@ -8,7 +8,7 @@ Decoding of trace file captured 8/18:
   . Emergency button states?
 
 
-As of 10/02/2017, need to:
+As of 10/07/2017, need to:
 - Alter RxTest software on Uno to respond, making a simulator
   when a jumper or input is set (so no pgm change needed to just log)
 - AnalogObject's Open/Close90Percent are empty -- complete them??
@@ -39,6 +39,7 @@ Done:
 - Digital output CAN modules configured to turn off all outputs upon lack of comm
   Send 0x1016.1 = 0x0001012C (Using a Heart Beat message from us at NID 1 @ 90ms and
   they are as 300ms Heartbeat consumers)
+- Simulator (CanLogger) now responds to all outputs in a reasonable manner!!!
 - GUI:
   - Appears to work with Seeed CAN module as long as using FlexiTimer2
   - All CAN inputs are represented (green background on text for Active inputs)

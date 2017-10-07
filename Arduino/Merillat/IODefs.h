@@ -44,11 +44,11 @@
 #define NO_ACTION 0 // (unused) Retract field of PGN65280CanFrame
 
 // Direction field of PGN65280CanFrame
-#define NO_DIRECTION 0
-#define STARBOARD 1
-#define PORT 2
-#define DIR_CLOSE STARBOARD
-#define DIR_OPEN  PORT
+#define DIRECTION_NONE 0
+#define DIRECTION_STARBOARD 1
+#define DIRECTION_PORT 2
+#define DIRECTION_CLOSE DIRECTION_STARBOARD
+#define DIRECTION_OPEN  DIRECTION_PORT
 
 struct FC_SN {
   unsigned int SN:3; // Sequence Number
@@ -121,18 +121,19 @@ struct PGN130817CanFrames {
 enum {INPUT_INSTANCE, NORTH_INSTANCE, SOUTH_INSTANCE, NUM_INSTANCES};
 
 struct PGN65280CanFrame {
-  unsigned int ManufactureCode:11;
-  unsigned int Reserved:2;
-  unsigned int IndustryGroup:3;
+  INT16U ManufactureCode:11; // LSbit
+  INT16U Reserved:2;
+  INT16U IndustryGroup:3;    // MSbit
 
-  unsigned int ThrusterInstance:4;
-  unsigned int Direction:2;
-  unsigned int Retract:2;
+  INT8U  ThrusterInstance:4; // LSbit
+  INT8U  Direction:2;
+  INT8U  Retract:2;          // MSbit
 
-  unsigned int Thrust:10;
-  unsigned int ReservedB:6;
+  INT16U Thrust:10;
+  INT16U ReservedB:6;
 
-          long ReservedC:24;
+  INT8U  ReservedC;
+  INT16U ReservedD;
 }; // message to TX to each Thruster
 
 struct InputType {
@@ -201,6 +202,7 @@ extern InputType  Inputs;
 // Dimensional defines, defines decision points
 #define MIN_THRUST 50  // 1024ths thrust
 #define MAX_THRUST 512 // 1024ths thrust
+#define NO_THRUST 0
 
 #endif // IODEFS_INCLUDED
 

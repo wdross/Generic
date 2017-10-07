@@ -64,12 +64,12 @@ inline bool AnalogObject::IsClosed() {
   INT16U reading = *Address;
   if (_DI->Opened > _DI->Closed) {
     // increasing numbers for opening (Opened > Closed)
-    if (reading < _DI->Closed)
+    if (reading <= _DI->Closed)
       return(true); // it is 'over closed'
   }
   else {
     // decreasing numbers for opening
-    if (reading > _DI->Closed)
+    if (reading >= _DI->Closed)
       return(true); // it is 'over closed'
   }
   return(abs(reading - _DI->Closed) < CLOSED_TOLERANCE);
@@ -82,12 +82,12 @@ inline bool AnalogObject::IsOpen()
   INT16U reading = *Address;
   if (_DI->Opened > _DI->Closed) {
     // increasing numbers for opening (Opened > Closed)
-    if (reading > _DI->Opened)
+    if (reading >= _DI->Opened)
       return(true); // it is 'over opened'
   }
   else {
     // decreasing numbers for opening
-    if (reading < _DI->Opened)
+    if (reading <= _DI->Opened)
       return(true); // it is 'over opened'
   }
   return(abs(reading - _DI->Opened) < OPENED_TOLERANCE);
@@ -147,7 +147,7 @@ inline bool AnalogObject::IsSlow() {
   // this should look like.
   if (RateOfChangeTimer.IsTimeout()) {
     INT16U CurrentPosition = *Address;
-    LastMovement = CurrentPosition - LastPosition;
+    LastMovement = abs(CurrentPosition - LastPosition);
     LastPosition = CurrentPosition;
     RateOfChangeTimer.ResetTimer();
   }

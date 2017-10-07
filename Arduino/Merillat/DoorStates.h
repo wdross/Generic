@@ -22,6 +22,9 @@ public:
   inline long CurrentTime() {
     return OpenTimer.GetExpiredBy();
   }
+  bool Touch_IsRequestingClose;
+  bool Touch_IsRequestingOpen;
+
 
 private:
     // state machine state functions
