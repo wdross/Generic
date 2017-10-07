@@ -13,8 +13,6 @@
 #define SPI_CS_PIN 9
 #define CAN_TX_INTERVAL 90 // ms
 
-#define COB_ID_MASK 0x1FFFFFFFL // 29-bit mask
-
 typedef void (*voidFuncPtr)(void);
 
 struct CanEntryType {
@@ -38,7 +36,10 @@ extern CanTxType CanOutBuffers[NUM_OUT_BUFFERS];
 extern long int Fault;
 extern long int OK;
 extern MCP_CAN CAN;
+extern long int OutputSetTimer;
 
+extern int sizeofRawArray;
+extern uint32_t* pRawArray;
 
 void CanPollerInit();
 

@@ -7,8 +7,12 @@
 #include "IODefs.h"
 #include "CanOpen.h"
 
+int sizeofRawArray = 0;
+uint32_t* pRawArray;
+
 long int Fault=0;
 long int OK=0;
+long int OutputSetTimer=INFINITE;
 
 CanRxType CanInBuffers[NUM_IN_BUFFERS];
 CanTxType CanOutBuffers[NUM_OUT_BUFFERS];
@@ -33,7 +37,7 @@ void CanPollSetRx(INT32U COBID, char len, INT8U *buf, voidFuncPtr userFN)
     if (CanInBuffers[j].Can.COBID == 0) {
       CanInBuffers[j].Can.Length = len;
       CanInBuffers[j].Can.pMessage = buf;
-      CanInBuffers[j].Can.COBID = COBID;
+      CanInBuffers[j].Can.COBID = COBID & COB_ID_MASK; // make sure any Extended indicator bit is cleared off
       CanInBuffers[j].LastRxTime.SetTimer(INFINITE); // nothing yet
       CanInBuffers[j].RxFunction = userFN;
       break; // we're done
@@ -113,11 +117,27 @@ void CanPoller()
   for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
     if (CanOutBuffers[j].NextSendTime.IsTimeout()) {
       INT32U COBID = CanOutBuffers[j].Can.COBID&COB_ID_MASK;
-      char ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+      char ret;
+      if (COBID != CanOutBuffers[j].Can.COBID) {
+        INT8U local[8];
+        for (int k=0; k<sizeof(local); k++)
+          local[k] = pgm_read_byte_near(&CanOutBuffers[j].Can.pMessage[k]);
+        CanOutBuffers[j].Can.pMessage += sizeof(local); // advance 8 bytes
+        if (CanOutBuffers[j].Can.pMessage - (byte*)pRawArray >= sizeofRawArray)
+          CanOutBuffers[j].Can.pMessage = (byte*)pRawArray; // wrap
+        ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,(INT8U*)&local);
 #ifdef DO_LOGGING
-      AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+        AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,(INT8U*)&local);
 #endif
-      CanOutBuffers[j].NextSendTime.SetTimer(INFINITE);
+        CanOutBuffers[j].NextSendTime.IncrementTimer(OutputSetTimer); // controlled by a changeable timer
+      }
+      else {
+        ret = CAN.sendMsgBuf(COBID,CanOutBuffers[j].Can.COBID&IS_EXTENDED_COBID?1:0,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+#ifdef DO_LOGGING
+        AddToDisplayBuffer(COBID,CanOutBuffers[j].Can.Length,CanOutBuffers[j].Can.pMessage);
+#endif
+        CanOutBuffers[j].NextSendTime.SetTimer(INFINITE); // causes to wait for a SYNC to be re-triggered
+      }
       if (ret == CAN_OK)
         OK++;
       else
@@ -147,7 +167,7 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.Length);
         Serial.print("\t");
-        Serial.print((long)CanOutBuffers[j].Can.pMessage);
+        Serial.print((long)CanOutBuffers[j].Can.pMessage,HEX);
         Serial.print("\t");
         Serial.print(CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID?1:0);
         Serial.print("\t");
@@ -155,7 +175,10 @@ void CanPollDisplay(int io)
         if (CanOutBuffers[j].Can.Length) {
           Serial.print("\t[");
           for (int k=0; k<CanOutBuffers[j].Can.Length; k++) {
-            Serial.print(CanOutBuffers[j].Can.pMessage[k],HEX);
+            if ((CanOutBuffers[j].Can.COBID&COB_ID_MASK) != CanOutBuffers[j].Can.COBID)
+              Serial.print(pgm_read_byte_near(&CanOutBuffers[j].Can.pMessage[k]),HEX);
+            else
+              Serial.print(CanOutBuffers[j].Can.pMessage[k],HEX);
             if (k<CanOutBuffers[j].Can.Length-1)
               Serial.print(" ");
           }
@@ -182,7 +205,7 @@ void CanPollDisplay(int io)
         Serial.print("\t");
         Serial.print(CanInBuffers[j].Can.Length);
         Serial.print("\t");
-        Serial.print((long)CanInBuffers[j].Can.pMessage);
+        Serial.print((long)CanInBuffers[j].Can.pMessage,HEX);
         Serial.print("\t");
         Serial.print(CanInBuffers[j].LastRxTime.getEndTime());
         if (CanInBuffers[j].Can.Length) {

@@ -13,10 +13,18 @@ const int DOOR_SIMULATE_PIN = 12;
 
 int CurrentCANBaud = 0;
 
-struct CAN_Entry {
+const byte RawArray[] PROGMEM = {
+0x60,0x10,0x32,0x99,0x00,0xF2,0x00,0x00,
+0x61,0x3D,0x1D,0x00,0xFE,0x04,0x00,0x00,
+0x62,0x00,0x00,0x02,0xFF,0xFF,0xFF,0xFF,
+0xC0,0x10,0x32,0x99,0x00,0xF1,0x00,0x00,
+0xC1,0x44,0x1C,0x00,0xEB,0x04,0x00,0x00,
+0xC2,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF};
+
+const struct CAN_Entry {
   int kBaud;
   int CAN_Konstant;
-  char *rate;
+  const char *rate;
 } CANBaudLookup[] = {
                       {0,0,"placeholder"},
                       {5,CAN_5KBPS,"5,000"},
@@ -43,9 +51,173 @@ struct CAN_Entry {
 bool cycle = false;
 CFwTimer SYNCTimer;
 
-void RXSouthDoor() {
-  // called when we get a SouthDoor message
-//  Serial.println(South_Winter_Door_Position);
+unsigned int LastThrust[3] = {0,0,0};
+unsigned int LastDir[3] = {0,0,0};
+unsigned int LastInst = 0;
+
+void IncomingThrust() {
+  // called when we get a motor controller packet
+  int instance = Outputs.Thrusters[0].ThrusterInstance;
+  if (instance == 1 || instance == 2) {
+    // valid Thruster ID, file it into the appropriate slot
+    memcpy(&Outputs.Thrusters[instance],&Outputs.Thrusters[0],sizeof(Outputs.Thrusters[0]));
+    // Outputs.Thrusters[instance] = Outputs.Thrusters[0];
+    // these get looked at when the SYNC message comes in
+    if (LastInst == instance)
+      Serial.println("HEY!");
+    LastInst = instance;
+  }
+}
+
+void IncomingSYNC() {
+  static CFwTimer RemoteTimer(INFINITE);
+  static INT8U Last_South_Winter_Latch = 0;
+  static CFwTimer South_Winter_Latch_Timer(INFINITE);
+  static INT8U Last_North_Winter_Latch = 0;
+  static CFwTimer North_Winter_Latch_Timer(INFINITE);
+  static INT8U Last_Center_Winter_Latch = 0;
+  static CFwTimer Center_Winter_Latch_Timer(INFINITE);
+
+  // we saw a SYNC message
+  // use this interval to decide what movements to report happening this SYNC
+  // i.e. if SouthThrusterClose active, then alter AnalogWinter input closer to CLOSED
+  // if NorthHydraulicOpen output active then alter AnalogUpper input closer to OPENED
+  // monitor for edges (start moving actuator, start timing, 10s later, show correct limit switch changed state)
+
+  // Monitor and respond to upper door movement request
+#define UPPER_DOOR_MOVEMENT_RATE 125
+  if (Upper_South_Door_CLOSE)
+    Upper_South_Door_Position += UPPER_DOOR_MOVEMENT_RATE;
+  if (Upper_South_Door_OPEN)
+    Upper_South_Door_Position -= UPPER_DOOR_MOVEMENT_RATE;
+  if (Upper_North_Door_CLOSE)
+    Upper_North_Door_Position -= 3*UPPER_DOOR_MOVEMENT_RATE/2;
+  if (Upper_North_Door_OPEN)
+    Upper_North_Door_Position += 4*UPPER_DOOR_MOVEMENT_RATE/5;
+
+  // monitor South Winter latch OPEN/Unlatch as well as CLOSE/Latch
+  if (South_Winter_Latch == lr_Latch_Request)
+    bitClear(Inputs.SouthDoorDIO_Rx,1); // first scan, show !latched
+  else if (South_Winter_Latch == lr_Unlatch_Request)
+    bitClear(Inputs.SouthDoorDIO_Rx,0); // first scan, show !unlatched
+  if (Last_South_Winter_Latch != South_Winter_Latch && South_Winter_Latch) {
+    South_Winter_Latch_Timer.SetTimer(6000);
+  }
+  Last_South_Winter_Latch = South_Winter_Latch;
+  if (South_Winter_Latch && South_Winter_Latch_Timer.IsTimeout()) {
+    if (South_Winter_Latch == lr_Unlatch_Request) {
+      South_Winter_Lock_Open_IsUnlatched;
+    }
+    else {
+      South_Winter_Lock_Open_IsLatched;
+    }
+  }
+
+  // respond to North Winter latch OPEN/Unlatch as well as CLOSE/Latch
+  if (North_Winter_Latch == lr_Latch_Request)
+    bitClear(Inputs.NorthDoorDIO_Rx,3);
+  else if (North_Winter_Latch == lr_Unlatch_Request)
+    bitClear(Inputs.NorthDoorDIO_Rx,2);
+  if (Last_North_Winter_Latch != North_Winter_Latch && North_Winter_Latch) {
+    North_Winter_Latch_Timer.SetTimer(5000);
+  }
+  Last_North_Winter_Latch = North_Winter_Latch;
+  if (North_Winter_Latch && North_Winter_Latch_Timer.IsTimeout()) {
+    if (North_Winter_Latch == lr_Unlatch_Request) {
+      North_Winter_Lock_Open_IsUnlatched;
+    }
+    else {
+      North_Winter_Lock_Open_IsLatched;
+    }
+  }
+
+  // respond to center lock movement OPEN/Unlatch as well as CLOSE/Latch
+  if (Center_Winter_Latch == lr_Latch_Request)
+    bitClear(Inputs.SouthDoorDIO_Rx,3); // clear 'latched' of Winter_Lock_Closed_IsLatched
+  else if (Center_Winter_Latch == lr_Unlatch_Request)
+    bitClear(Inputs.SouthDoorDIO_Rx,2);
+  if (Last_Center_Winter_Latch != Center_Winter_Latch && Center_Winter_Latch) {
+    Center_Winter_Latch_Timer.SetTimer(7000);
+  }
+  Last_Center_Winter_Latch = Center_Winter_Latch;
+  if (Center_Winter_Latch && Center_Winter_Latch_Timer.IsTimeout()) {
+    if (Center_Winter_Latch == lr_Unlatch_Request) {
+      Winter_Lock_Closed_IsUnlatched;
+    }
+    else {
+      Winter_Lock_Closed_IsLatched; // show closed
+    }
+  }
+
+  // monitor any outgoing Open/Close requests: allow on for 4-seconds only
+  if (Inputs.NorthHydraulic_Rx) {
+    if (RemoteTimer.GetRemaining() == INFINITE)
+      RemoteTimer.SetTimer(4000);
+    else if (RemoteTimer.IsTimeout())
+      Inputs.NorthHydraulic_Rx = 0;
+  }
+  else
+    RemoteTimer.SetTimer(INFINITE);
+
+  // look at both data elements, see what has changed, maybe print something
+  // MUST leave this here, as we use the latched Last* entries to make our
+  // decisions on action just below this...
+  if (Outputs.Thrusters[NORTH_INSTANCE].Thrust != LastThrust[NORTH_INSTANCE] ||
+      Outputs.Thrusters[NORTH_INSTANCE].Direction != LastDir[NORTH_INSTANCE] ||
+      Outputs.Thrusters[SOUTH_INSTANCE].Thrust != LastThrust[SOUTH_INSTANCE] ||
+      Outputs.Thrusters[SOUTH_INSTANCE].Direction != LastDir[SOUTH_INSTANCE]) {
+    LastThrust[NORTH_INSTANCE] = Outputs.Thrusters[NORTH_INSTANCE].Thrust;
+    LastDir[NORTH_INSTANCE] = Outputs.Thrusters[NORTH_INSTANCE].Direction;
+    LastThrust[SOUTH_INSTANCE] = Outputs.Thrusters[SOUTH_INSTANCE].Thrust;
+    LastDir[SOUTH_INSTANCE] = Outputs.Thrusters[SOUTH_INSTANCE].Direction;
+    Serial.print("N:");
+    Serial.print(LastDir[NORTH_INSTANCE]);
+    Serial.print("@");
+    Serial.print(LastThrust[NORTH_INSTANCE]);
+    Serial.print(";  S:");
+    Serial.print(LastDir[SOUTH_INSTANCE]);
+    Serial.print("@");
+    Serial.println(LastThrust[SOUTH_INSTANCE]);
+  }
+
+  // see if the thrusters are being asked to move, and change the winter hinge position if so
+  if (LastDir[NORTH_INSTANCE] && LastThrust[NORTH_INSTANCE] > MIN_THRUST) {
+    INT16S pos = Winter_North_Door_Position;
+    if (LastDir[NORTH_INSTANCE] == DIRECTION_CLOSE) {
+      pos += Outputs.Thrusters[NORTH_INSTANCE].Thrust/4;
+      if (pos < Winter_North_Door_Position)
+        pos = Winter_North_Door_Position; // don't allow wrapping
+    }
+    else {
+      pos -= Outputs.Thrusters[NORTH_INSTANCE].Thrust/4;
+      if (pos > Winter_North_Door_Position)
+        pos = Winter_North_Door_Position; // don't allow wrapping
+    }
+    Winter_North_Door_Position = pos;
+  }
+  if (LastDir[SOUTH_INSTANCE] &&
+      LastThrust[SOUTH_INSTANCE] > MIN_THRUST) {
+    INT16S pos = Winter_South_Door_Position;
+    if (LastDir[SOUTH_INSTANCE] == DIRECTION_OPEN) { // opposite direction as NORTH
+      pos += Outputs.Thrusters[SOUTH_INSTANCE].Thrust/4;
+      if (pos < Winter_South_Door_Position)
+        pos = Winter_South_Door_Position; // don't allow wrapping
+    }
+    else {
+      pos -= Outputs.Thrusters[SOUTH_INSTANCE].Thrust/4;
+      if (pos > Winter_South_Door_Position)
+        pos = Winter_South_Door_Position; // don't allow wrapping
+    }
+    Winter_South_Door_Position = pos;
+  }
+
+  // mark all non-extended outgoing messages for 'now'
+  for (int j=0; j<NUM_OUT_BUFFERS && CanOutBuffers[j].Can.COBID; j++) {
+    if ((CanOutBuffers[j].Can.COBID & IS_EXTENDED_COBID) == 0) {
+      // this is a non-extended frame, so we send this in response to a SYNC
+      CanOutBuffers[j].NextSendTime.SetTimer(j); // 1ms apart
+    }
+  }
 }
 
 
@@ -53,6 +225,8 @@ void setup()
 {
   // initialize the pushbutton pin as an input:
   pinMode(DOOR_SIMULATE_PIN, INPUT);
+  sizeofRawArray = sizeof(RawArray);
+  pRawArray = (uint32_t*)&RawArray; // (uint32_t*)RawArray;
 
   Serial.flush();
   delay(100);
@@ -75,46 +249,47 @@ void setup()
   // These sections of Tx/Rx are opposite of the definitions in Merillat.ino
   // Data we want to collect from the bus
   //           COBID,                   NumberOfBytesToReceive,           AddressOfDataStorage
-  CanPollSetRx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx,   NULL);
-  CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx,RXSouthDoor);
-  CanPollSetRx(SOUTHTHRUSTER_RX_COBID,  sizeof(Inputs.SouthThruster_Rx),  (INT8U*)&Inputs.SouthThruster_Rx,  NULL);
-  CanPollSetRx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx,   NULL);
-  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx,NULL);
-  CanPollSetRx(NORTHTHRUSTER_RX_COBID,  sizeof(Inputs.NorthThruster_Rx),  (INT8U*)&Inputs.NorthThruster_Rx,  NULL);
-  CanPollSetRx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx, NULL);
+  CanPollSetRx(0x80,                    0,                                0,                                IncomingSYNC);
+  CanPollSetRx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx,  NULL);
+  CanPollSetRx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx,NULL);
+  CanPollSetRx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx,  NULL);
+  CanPollSetRx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx,NULL);
+  CanPollSetRx(THRUSTER_TX_COBID,      sizeof(Outputs.Thrusters[0]),     (INT8U*)&Outputs.Thrusters[0],     IncomingThrust);
+  memset(&Outputs.Thrusters,0,sizeof(Outputs.Thrusters)); // zero all of them out
 
   // Data we'll transmit (evenly spaced) every CAN_TX_INTERVAL ms
   //           COBID,                  NumberOfBytesToTransmit,          AddressOfDataToTransmit
-  CanPollSetTx(SOUTHDOORDIO_TX_COBID,  sizeof(Outputs.SouthDoorDIO_Tx),  (INT8U*)&Outputs.SouthDoorDIO_Tx);
-  CanPollSetTx(SOUTHTHRUSTER_TX_COBID, sizeof(Outputs.SouthThruster_Tx), (INT8U*)&Outputs.SouthThruster_Tx);
-  CanPollSetTx(SOUTHHYDRAULIC_TX_COBID,sizeof(Outputs.SouthHydraulic_Tx),(INT8U*)&Outputs.SouthHydraulic_Tx);
-  CanPollSetTx(NORTHDOORDIO_TX_COBID,  sizeof(Outputs.NorthDoorDIO_Tx),  (INT8U*)&Outputs.NorthDoorDIO_Tx);
-  CanPollSetTx(NORTHTHRUSTER_TX_COBID, sizeof(Outputs.NorthThruster_Tx), (INT8U*)&Outputs.NorthThruster_Tx);
-  CanPollSetTx(NORTHHYDRAULIC_TX_COBID,sizeof(Outputs.NorthHydraulic_Tx),(INT8U*)&Outputs.NorthHydraulic_Tx);
+  CanPollSetTx(0x19FF0100L|IS_EXTENDED_COBID,8,RawArray); // Thrusters assumed to be [0], so declare first!!
+  CanPollSetTx(SOUTHDOORDIO_RX_COBID,   sizeof(Inputs.SouthDoorDIO_Rx),   (INT8U*)&Inputs.SouthDoorDIO_Rx);
+  CanPollSetTx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx);
+  CanPollSetTx(NORTHDOORDIO_RX_COBID,   sizeof(Inputs.NorthDoorDIO_Rx),   (INT8U*)&Inputs.NorthDoorDIO_Rx);
+  CanPollSetTx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx);
+  CanPollSetTx(NORTHHYDRAULIC_RX_COBID, sizeof(Inputs.NorthHydraulic_Rx), (INT8U*)&Inputs.NorthHydraulic_Rx);
+
+  CanOutBuffers[0].NextSendTime.SetTimer(0); // send now, priming the pump
+  OutputSetTimer = 40; // cause to always cycle
+
+  CanPollDisplay(3);
+
+  // initialize state of sent outputs to be what we want: all zeros
+  Inputs.SouthDoorDIO_Rx = 0;
+  Inputs.SouthDoorAnalog_Rx[0] = Inputs.SouthDoorAnalog_Rx[1] = 0;
+  Inputs.NorthDoorDIO_Rx = 0;
+  Inputs.NorthDoorAnalog_Rx[0] = Inputs.NorthDoorAnalog_Rx[1] = 0;
+  Inputs.NorthHydraulic_Rx = 0;
+
+  // now what bits to be on to show everything open:
+  South_Winter_Lock_Open_IsLatched;
+  North_Winter_Lock_Open_IsLatched;
+  System_Enable;
+  Winter_South_Door_Position = 21802;
+  Upper_South_Door_Position = 7727;
+  Winter_North_Door_Position = 8033;
+  Upper_North_Door_Position = 24515;
 
   FlexiTimer2::set(1, 0.0004, CanPoller); // Every 0.4 ms (400us)
   FlexiTimer2::start();
-
-  startUpText();
-  Serial.flush();
 }
-
-void startUpText()
-{
-  Serial.println("--------  CAN BUS Logger  ---------");
-  Serial.println();
-  Serial.println("To PAUSE: send a 'P' ");
-  Serial.println();
-  Serial.println("To RESUME: send a 'R' ");
-  Serial.println();
-  Serial.println("To change the BAUD rate: send a 'Bnnn', like B500 for 500kBaud");
-  Serial.println();
-  Serial.println("-----------------------------------------------------");
-  Serial.println();
-  Serial.println(" Init CAN BUS Shield OKAY!");
-  Serial.println();
-}
-
 
 
 void loop()
@@ -122,9 +297,23 @@ void loop()
   char serialRead;
 
   serialRead = Serial.read();
-  if(serialRead == 'P')    // Type p in the Serial monitor bar p=pause
+  if (serialRead == 'z' || serialRead == 'Z') {
+    CanOutBuffers[0].Can.pMessage += 8; // advance to next buffer
+    if (CanOutBuffers[0].Can.pMessage >= RawArray + sizeof(RawArray))
+      CanOutBuffers[0].Can.pMessage = RawArray; // wrap
+    CanOutBuffers[0].NextSendTime.SetTimer(0); // send now
+  }
+  else if (serialRead == 'r' || serialRead == 'R') // RUN
   {
-    while(Serial.read() != 'R' ){}
+    if (OutputSetTimer == INFINITE) {
+      Serial.println("Running");
+      OutputSetTimer = 40;
+      CanOutBuffers[0].NextSendTime.SetTimer(0); // send now, priming the pump
+    }
+    else {
+      Serial.println("Monitoring");
+      OutputSetTimer = INFINITE;
+    }
   }
   else if (serialRead == 'S' || serialRead == 's') // SYNC transmit
   {
@@ -134,20 +323,27 @@ void loop()
   {
     NMTsend();
   }
-  else if (serialRead == 'd' || serialRead == 'D') // sDo
+  else if (serialRead == 'd' || serialRead == 'D') // display output buffers
   {
-    SDOread(ESD_SOUTH_DOOR_ANALOG,0x1a01,0);
+//    SDOread(ESD_SOUTH_DOOR_ANALOG,0x1a01,0);
+    CanPollDisplay(3);
   }
   else if (serialRead == 'w' || serialRead == 'W') // Write sdo
   {
     SDOwrite(ESD_SOUTH_DOOR_ANALOG,0x1801,2,1,1);
   }
-  else if (serialRead == 'c' || serialRead == 'C') // Cycle
-  {
-    cycle = !cycle;
-    if (cycle) {
-      SYNCTimer.SetTimer(100);
-    }
+//  else if (serialRead == 'c' || serialRead == 'C') // Cycle
+//  {
+//    cycle = !cycle;
+//    if (cycle) {
+//      SYNCTimer.SetTimer(100);
+//    }
+//  }
+  else if (serialRead == 'c' || serialRead == 'C') { // close
+    Remote_IsRequestingClose;
+  }
+  else if (serialRead == 'o' || serialRead == 'O') { // open
+    Remote_IsRequestingOpen;
   }
 
   else if(serialRead == 'B') // Baud rate request
@@ -189,6 +385,7 @@ void loop()
     SYNCTimer.IncrementTimer(100);
   }
 
+#ifdef DO_LOGGING
   if (Head != Tail) {
     // not caught up, print out the next message we have
     Tail = (Tail + 1) % NUM_BUFFS;
@@ -214,5 +411,6 @@ void loop()
     Serial.print("     ");
     Serial.println((0.001)*CanRXBuff[Tail].Time, 3);
   }
+#endif
 }
 
