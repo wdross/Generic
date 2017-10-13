@@ -148,7 +148,7 @@ void SaveOper(int t) {
 
   Activity.SetTimer(0); // and exit
 };
-void CancelOper(int t) {
+void CancelOper(int) {
   // get out without doing anything
   Activity.SetTimer(0);
 };
@@ -266,7 +266,7 @@ void EESettings() {
       // update values from the CAN Analog modules
       myGLCD.setBackColor(BLACK);
       if (CanPollElapsedFromLastRxByCOBID(DoorInfo[i].COBID) > NOT_TALKING_TIMEOUT)
-        sprintf(value,"-----");
+        sprintf(value,"------");
       else {
         INT16U v = DoorInfo[i].Position->Value();
         if (v > FORTYFIVEDEG &&
@@ -289,7 +289,7 @@ void EESettings() {
     if (ct == INFINITE)
       sprintf(digits,"   -   ");
     else
-      sprintf(digits,"%7ld",ct);
+      sprintf(digits,"%7ld",abs(ct));
     myGLCD.setColor(WHITE);
     myGLCD.print(digits,CENTER,MAX_Y-12);
 
@@ -468,7 +468,7 @@ void setup()
 
   CanPollDisplay(3); // show everything we've configured
 
-  ToucherSetup(); // initialize the lines for reaching the touch input
+  ToucherSetup(); // initialize the lines for reading the touch input
 
   FlexiTimer2::set(1, 0.00035, CanPoller); // Every 0.35 ms (350us) or 2857 times per second
   FlexiTimer2::start();
@@ -829,7 +829,7 @@ void loop()
       if (ct == INFINITE)
         sprintf(digits,"   -   ");
       else
-        sprintf(digits,"%7ld",ct);
+        sprintf(digits,"%7ld",abs(ct/1000));
       myGLCD.setColor(YELLOW);
       myGLCD.setBackColor(BLACK);
       myGLCD.print(digits,RIGHT,myGLCD.getFontHeight()*2);
@@ -874,6 +874,7 @@ void loop()
       myGLCD.setBackColor(BLACK);
       myGLCD.print("C",MAX_X/2-myGLCD.getFontWidth()/2,3*MAX_Y/5-myGLCD.getFontHeight()/2);
       PaintStatics--; // should end up with 2 passes to draw everything back
+      BUMP_GUI_TIMER; // prevent or wake up from sleep
     }
     if (GUITimer.IsTimeout() && !Cleared) {
       // nothing has been updated lately, so let's invoke 'screen saver'
