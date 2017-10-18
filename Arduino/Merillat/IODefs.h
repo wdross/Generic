@@ -160,13 +160,13 @@ enum LatchRequestType {lr_No_Request, lr_Unlatch_Request, lr_Latch_Request};
 
 struct OutputType {
   INT8U SouthDoorDIO_Tx; // ID11: 5 Out
-#define SOUTHDOOR_OUTPUT_MASK 0x8f
+#define SOUTHDOOR_OUTPUT_MASK 0x9f
 
   INT8U SouthHydraulic_Tx;
 #define SOUTHHYDRAULIC_OUTPUT_MASK 0x83
 
   INT8U NorthDoorDIO_Tx;
-#define NORTHDOOR_OUTPUT_MASK 0x83
+#define NORTHDOOR_OUTPUT_MASK 0xc3
 
   INT8U NorthHydraulic_Tx;
 #define NORTHHYDRAULIC_OUTPUT_MASK 0x83
@@ -267,7 +267,7 @@ extern
 #endif
        AnalogObject Winter_South_Door_Position
 #ifdef DEFINE_BITOBJECTS
-                                              (&Inputs.SouthDoorAnalog_Rx[0],&myEE.Data.Doors[deWinterSouthDoor],false)
+                                              (&Inputs.SouthDoorAnalog_Rx[0],&myEE.Data.Doors[deWinterSouthDoor],false,false)
 #endif
                                                                       ;
 #ifndef DEFINE_BITOBJECTS
@@ -275,7 +275,7 @@ extern
 #endif
        AnalogObject Upper_South_Door_Position
 #ifdef DEFINE_BITOBJECTS
-                                             (&Inputs.SouthDoorAnalog_Rx[1],&myEE.Data.Doors[deUpperSouthDoor],false)
+                                             (&Inputs.SouthDoorAnalog_Rx[1],&myEE.Data.Doors[deUpperSouthDoor],false,true)
 #endif
                                                                       ;
 // North door control box
@@ -300,7 +300,7 @@ extern
 #endif
        AnalogObject Winter_North_Door_Position
 #ifdef DEFINE_BITOBJECTS
-                                              (&Inputs.NorthDoorAnalog_Rx[0],&myEE.Data.Doors[deWinterNorthDoor],true)
+                                              (&Inputs.NorthDoorAnalog_Rx[0],&myEE.Data.Doors[deWinterNorthDoor],true,false)
 #endif
                                                                       ;
 #ifndef DEFINE_BITOBJECTS
@@ -308,7 +308,7 @@ extern
 #endif
        AnalogObject Upper_North_Door_Position
 #ifdef DEFINE_BITOBJECTS
-                                              (&Inputs.NorthDoorAnalog_Rx[1],&myEE.Data.Doors[deUpperNorthDoor],true)
+                                              (&Inputs.NorthDoorAnalog_Rx[1],&myEE.Data.Doors[deUpperNorthDoor],true,true)
 #endif
                                                                       ;
 // North hydraulic
@@ -367,6 +367,15 @@ extern
 #ifndef DEFINE_BITOBJECTS
 extern
 #endif
+       BitObject Inflate_South
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.SouthDoorDIO_Tx,4)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
        BitObject Activity_Panel1
 #ifdef DEFINE_BITOBJECTS
                                          (&Outputs.SouthDoorDIO_Tx,7)
@@ -397,6 +406,15 @@ extern
        BitObject North_Winter_Latch
 #ifdef DEFINE_BITOBJECTS
                                          (&Outputs.NorthDoorDIO_Tx,0,2)
+#endif
+                                                                       ;
+
+#ifndef DEFINE_BITOBJECTS
+extern
+#endif
+       BitObject Inflate_North
+#ifdef DEFINE_BITOBJECTS
+                                         (&Outputs.NorthDoorDIO_Tx,6)
 #endif
                                                                        ;
 

@@ -130,7 +130,7 @@ struct {
   int cX, cY; // center for touch
   int Width, Height; // width of touch, X and Y
   INT16U *Target; // what value might I modify
-  AnalogObject *Source; // what might I get a preset from?
+  void *Source; // what might I get a preset from?
   funcOper fo;
 } Touches[26];
 
@@ -165,7 +165,7 @@ void PrintUpdatedValue(int t) {
   myGLCD.print(num,Touches[t].X,Touches[t].Y);
 }
 void SetValue(int t) {
-  *Touches[t].Target = Touches[t].Source->Value();
+  *Touches[t].Target = ((AnalogObject*)Touches[t].Source)->Value();
   Touches[t].fo = NULL;
   PrintUpdatedValue(t);
 }
@@ -177,7 +177,7 @@ void ChangeValue(int t) {
 
 // creates an entry in the array
 // returns the index within Touches[] that was created
-int TouchEntry(int Major, int Minor, int x, int y, int characters, void *Fn, INT16U *t, AnalogObject *src) {
+int TouchEntry(int Major, int Minor, int x, int y, int characters, void *Fn, INT16U *t, void *src) {
   int i = Major*6+Minor;
   Touches[i].X = x;
   Touches[i].Y = y;
@@ -188,10 +188,202 @@ int TouchEntry(int Major, int Minor, int x, int y, int characters, void *Fn, INT
   Touches[i].Target = t;
   Touches[i].Source = src;
   Touches[i].fo = Fn;
+#if 1
+  Serial.print("["); Serial.print(i); Serial.print("] #="); Serial.print(characters); Serial.print(" @ (");
+  Serial.print(Touches[i].X); Serial.print(","); Serial.print(Touches[i].Y); Serial.print(")x(");
+  Serial.print(Touches[i].X+Touches[i].Width); Serial.print(","); Serial.print(Touches[i].Y+Touches[i].Height);
+  Serial.print(") Source=0x"); Serial.print((long)Touches[i].Source,HEX); Serial.print(", target=0x"); Serial.println((int)Touches[i].Target,HEX);
+#endif
   return(i);
 }
 
-void EESettings() {
+void ClearTouches() {
+  for (int i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++)
+    Touches[i].fo = NULL;
+}
+
+void MoveDoor(int t) { // thruster jog
+  int which = (INT16U)Touches[t].Target;
+  Serial.print(which); Serial.print(" ");
+  if (which == NORTH_INSTANCE || SOUTH_INSTANCE) {
+    Outputs.Thrusters[which].Direction = (INT16U)Touches[t].Source; // DIRECTION_OPEN or _CLOSE
+    Outputs.Thrusters[which].Thrust = MAX_THRUST;
+  }
+} // MoveDoor
+
+void MoveLatch(int t) { // latch jog
+  int which = (INT16U)Touches[t].Target;
+  Serial.print(which); Serial.print(" ");
+  ((BitObject*)Touches[t].Source)->Write(which);
+} // MoveLatch
+
+
+void JogMode(int t) {
+  int X,Y,i; // touch inputs
+  char Title[20];
+
+  myGLCD.clrScr();
+  myGLCD.setColor(WHITE);
+  myGLCD.setBackColor(BLACK);
+  myGLCD.print("Jog Mode", CENTER, 0);
+  myGLCD.print("For any action", CENTER, MAX_Y/2);
+  myGLCD.print("press and hold", CENTER, MAX_Y/2+myGLCD.getFontHeight());
+  myGLCD.print("NORTH   ",RIGHT,myGLCD.getFontHeight());
+  myGLCD.print("   SOUTH",LEFT,myGLCD.getFontHeight());
+
+  Activity.SetTimer(5*60*1000LL); // timout to exit this screen
+  ClearTouches(); // don't have any functions defined
+  // Now buttons
+  myGLCD.setBackColor(BLUE);
+  myGLCD.print("BACK", RIGHT, 0);
+  TouchEntry(4,1,MAX_X-4*myGLCD.getFontWidth(),0,5,&CancelOper,NULL,NULL); // CANCEL
+
+  char *TitleList[] = {"Upper","Latch","Winter"}; // each one gets an OPEN/CLOSE version
+  BitObject *outList[] = {&Upper_South_Door,&South_Winter_Latch,NULL,&Upper_North_Door,&North_Winter_Latch,NULL,&Center_Winter_Latch,&Inflate_North,&Inflate_South};
+  for (int ns=0; ns<2; ns++) {
+    // ns==0 => NORTH;   ns==1 => SOUTH
+    for (int oc=0; oc<2; oc++) {
+      // oc==0 => OPEN;   oc==1 => CLOSE
+      for (i=0; i<3; i++) { // which one
+        sprintf((char*)&Title,"%s %s",TitleList[i],oc?"CLOSE":"OPEN");
+        Y = myGLCD.getFontHeight()*(3 + (oc + i*2)*3);
+        myGLCD.print(Title, ns==1?LEFT:RIGHT, Y);
+        X = ns==1?0:MAX_X-myGLCD.getFontWidth()*strlen(Title);
+        if (i < 2) // Latches
+          TouchEntry(ns,i*2+oc,X,Y,strlen(Title),&MoveLatch,(INT16U*)(oc==1?lr_Latch_Request:lr_Unlatch_Request),outList[i+(ns==1?0:3)]);
+        else       // Thrusters
+          TouchEntry(ns,i*2+oc,X,Y,strlen(Title),&MoveDoor,(INT16U*)(ns==1?SOUTH_INSTANCE:NORTH_INSTANCE),oc==1?DIRECTION_CLOSE:DIRECTION_OPEN);
+      } // which
+    } // Open/Close
+  } // North/South
+  sprintf((char*)&Title,"AIR");
+  Y = myGLCD.getFontHeight()*(2 + (1 + 0*2)*3);
+  X = (MAX_X-myGLCD.getFontWidth()*strlen(Title)*3)/2;
+  myGLCD.print(Title, X, Y);
+  TouchEntry(2,0,X,Y,strlen(Title),&MoveLatch,(INT16U*)1,&Inflate_South);
+  Y = myGLCD.getFontHeight()*(2 + (2 + 0*2)*3);
+  X = (MAX_X+myGLCD.getFontWidth()*strlen(Title)*3)/2;
+  myGLCD.print(Title, X, Y);
+  TouchEntry(2,1,X,Y,strlen(Title),&MoveLatch,(INT16U*)1,&Inflate_North);
+
+  sprintf((char*)&Title,"Center OPEN");
+  Y = myGLCD.getFontHeight()*(2 + (0 + 2*2)*3);
+  X = (MAX_X-myGLCD.getFontWidth()*strlen(Title))/2;
+  myGLCD.print(Title, X, Y);
+  TouchEntry(2,2,X,Y,strlen(Title),&MoveLatch,(INT16U*)lr_Unlatch_Request,&Center_Winter_Latch);
+  sprintf((char*)&Title,"Center CLOSE");
+  Y = myGLCD.getFontHeight()*(2 + (1 + 2*2)*3);
+  X = (MAX_X-myGLCD.getFontWidth()*strlen(Title))/2;
+  myGLCD.print(Title, X, Y);
+  TouchEntry(2,3,X,Y,strlen(Title),&MoveLatch,(INT16U*)lr_Latch_Request,&Center_Winter_Latch);
+
+  while (Activity.IsTiming()) {
+    char digits[20];
+    long ct = Activity.GetExpiredBy()/1000;
+    sprintf(digits,"%7ld",abs(ct));
+    myGLCD.setColor(WHITE);
+    myGLCD.setBackColor(BLACK);
+    myGLCD.print(digits,CENTER,MAX_Y-12);
+
+    if (ToucherLoop(X,Y,500)) {
+      Activity.ResetTimer(); // restart counting from 'now'
+      for (i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++) {
+        // which one are we touching closest to?
+        if (Touches[i].fo &&
+            abs(Touches[i].cX - X) < max(30,Touches[i].Width/2) &&
+            abs(Touches[i].cY - Y) < 19) {
+          // yup, this one looks good
+          Serial.print("Matched ");
+          Serial.print(i); Serial.print(":");
+          Touches[i].fo(i); // run it
+          myGLCD.setBackColor(RED);
+          myGLCD.print("      ",CENTER,myGLCD.getFontHeight());
+          break; // quit looking
+        }
+      }
+      if (i > sizeof(Touches)/sizeof(Touches[0])) {
+        Serial.print("Failed to find "); Serial.print(X); Serial.print(","); Serial.println(Y);
+      }
+    }
+    else if (ToucherStartedTouching(X,Y)) // touching, but not long enough yet
+      Activity.ResetTimer(); // retart from 'now'
+    else if (!ToucherStillTouching(X,Y)) {
+      // kill motion they aren't touching any longer; this will get hit *a lot*
+      Outputs.Thrusters[SOUTH_INSTANCE].Direction = DIRECTION_NONE;
+      Outputs.Thrusters[SOUTH_INSTANCE].Thrust = NO_THRUST;
+      Outputs.Thrusters[NORTH_INSTANCE].Direction = DIRECTION_NONE;
+      Outputs.Thrusters[NORTH_INSTANCE].Thrust = NO_THRUST;
+      for (i=0; i<sizeof(outList)/sizeof(outList[0]); i++) {
+        if (outList[i])
+          outList[i]->Write(lr_No_Request); // stop motion
+      }
+      // Reset visual indicator
+      // background is always set to BLACK for timer update
+      myGLCD.print("      ",CENTER,myGLCD.getFontHeight());
+    }
+    else // still touching, stay on this screen
+      Activity.ResetTimer(); // restart counting from 'now'
+  } // while timer indicates activity
+
+  myGLCD.clrScr(); // erase screen on the way out
+}
+
+char buff[11*32+10]; // bib stack storage location
+void Console() {
+  int X,Y; // touch inputs
+
+  Activity.SetTimer(60*1000LL); // timout to exit this screen
+  ClearTouches(); // don't have any functions defined
+  myGLCD.clrScr();
+  myGLCD.setColor(WHITE);
+  myGLCD.setBackColor(BLACK);
+  myGLCD.print("Console", CENTER, 0);
+  g_pDoorStates->ShowAllTimes((char*)&buff);
+  char *p = (char*)&buff;
+  X = 2; // start on line 2
+  while (*p) {
+    p += myGLCD.print(p,RIGHT,myGLCD.getFontHeight()*X);
+    X++; // next line
+    p++; // skip one null
+  }
+
+  // Now buttons
+  myGLCD.setBackColor(BLUE);
+  myGLCD.print("BACK", RIGHT, myGLCD.getFontHeight());
+  TouchEntry(4,1,MAX_X-2*myGLCD.getFontWidth(),myGLCD.getFontHeight()*3/2,5,&CancelOper,NULL,NULL); // CANCEL
+
+  myGLCD.print("Hinge Settings",LEFT,MAX_Y-myGLCD.getFontHeight());
+  TouchEntry(2,1,0,MAX_Y-myGLCD.getFontHeight(),14,&EESettings,NULL,NULL); // alter EESettings
+
+  myGLCD.print("Jog Mode",RIGHT,MAX_Y-myGLCD.getFontHeight());
+  TouchEntry(1,1,MAX_X-myGLCD.getFontWidth()*11,MAX_Y-myGLCD.getFontHeight(),10,&JogMode,NULL,NULL);
+
+  while (Activity.IsTiming()) {
+    if (ToucherLoop(X,Y)) {
+      int i;
+      Activity.ResetTimer(); // restart counting from 'now'
+      for (i=0; i<sizeof(Touches)/sizeof(Touches[0]); i++) {
+        // which one are we touching closest to?
+        if (Touches[i].fo &&
+            abs(Touches[i].cX - X) < max(15,Touches[i].Width/2) &&
+            abs(Touches[i].cY - Y) < 20) {
+          // yup, this one looks good
+          Serial.print("Matched ");
+          Serial.println(i);
+          Touches[i].fo(i); // run it
+          break; // quit looking
+        }
+      }
+      if (i <= sizeof(Touches)/sizeof(Touches[0])) {
+        Serial.print("Failed to find "); Serial.print(X); Serial.print(","); Serial.println(Y);
+      }
+    }
+  } // while timer indicates activity
+
+  myGLCD.clrScr(); // erase screen on the way out
+}
+
+void EESettings(int tt) { // doesn't use parameter passed in from Touches[] call
   int X,Y; // touch inputs
 
   // Stay in this routine, allowing user to update settings until SAVE or CANCEL is pressed
@@ -202,6 +394,7 @@ void EESettings() {
   // and contains the ability to set and modify (+/-) any paramter.
   // will also show the live value coming from the associated sensor
   myGLCD.clrScr();
+  ClearTouches(); // don't have any functions defined
 
   myGLCD.setColor(WHITE);
   myGLCD.setBackColor(BLACK);
@@ -485,9 +678,11 @@ void loop()
     char key = Serial.read();
     if (key == 'd')
       CanPollDisplay(3);
+    else if (key == 't' || key == 'T')
+      g_pDoorStates->ShowAllTimes();
     else if (key == 'e' || key == 'E')
       EEDisplay();
-    else if (key == 'W') {
+    else if (key == 'w' || key == 'W') {
       // request to wipe all EEPROM data
       memset(&myEE,0,sizeof(myEE));
       Serial.println("Erased copy of EEPROM");
@@ -502,6 +697,7 @@ void loop()
   }
 
   DoorControl();
+  g_pDoorStates->CheckForAbort(); // state-less opportunity to interrupt sequence
 #if !defined(INCREMENTING_OUTPUTS)
   // Execute all the state machines so that they can process timeout values, etc.
   for (int iCount = 0; iCount < lStateMachines.size(); iCount++) {
@@ -744,6 +940,8 @@ void loop()
       {"Remote Close",MAX_X/2-myGLCD.getFontWidth()*9,myGLCD.getFontHeight()*4, true,&Remote_IsRequestingClose},
       {"Local",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*3, true,&Local_IsRequestingOpen},
       {"Local",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*4, true,&Local_IsRequestingClose},
+      {" ",           MAX_X/2+myGLCD.getFontWidth()*3,myGLCD.getFontHeight()*3, true,g_pDoorStates->Touch_IsRequestingOpen},
+      {" ",           MAX_X/2+myGLCD.getFontWidth()*3,myGLCD.getFontHeight()*4, true,g_pDoorStates->Touch_IsRequestingClose},
       {"System Enabled",(MAX_X-myGLCD.getFontWidth()*14)/2,myGLCD.getFontHeight()*5, true,&System_Enable},
       // south latch
       {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
@@ -785,6 +983,8 @@ void loop()
       {" <>X", MAX_X/2,MAX_Y-5*myGLCD.getFontHeight()/2,-1,&Center_Winter_Latch},
       {" ^VX",       2,MAX_Y/3+(myGLCD.getFontHeight()*3)/2,-1,&South_Winter_Latch},
       {" ^VX",MAX_X-1-myGLCD.getFontWidth(),MAX_Y/3+(myGLCD.getFontHeight()*3)/2,-1,&North_Winter_Latch},
+      {" A",         2,MAX_Y/3+(myGLCD.getFontHeight()*12)/2,-1,&Inflate_South},
+      {" A",  MAX_X-1-myGLCD.getFontWidth(),MAX_Y/3+(myGLCD.getFontHeight()*12)/2,-1,&Inflate_North},
       {" <>X",myGLCD.getFontWidth()*5,MAX_Y-8*myGLCD.getFontHeight()/2,-1,&Upper_South_Door},
       {" ><X",MAX_X-myGLCD.getFontWidth()*5,MAX_Y-8*myGLCD.getFontHeight()/2,-1,&Upper_North_Door}
     };
@@ -839,25 +1039,27 @@ void loop()
         ToucherLoop(X,Y,1000) && // pressed for a second
         abs(X - MAX_X/2) < 30) { // tight in center left to right
       if (abs(Y - 3*MAX_Y/5) < 30) { // below center
-        EESettings(); // gets stuck in here for a long time
+        Console(); // gets stuck in here for a long time
         PaintStatics = 2; // redraw the main screen when we return
       }
-      else if (abs(Y - myGLCD.getFontHeight()*3) < 30) {
+      else if (abs(Y - myGLCD.getFontHeight()*2) < 30) {
         // upper button, "Open"
-        g_pDoorStates->Touch_IsRequestingOpen = true;
+        g_pDoorStates->Touch_IsRequestingOpen->Write(true);
+        Serial.println("Open");
       }
       else if (abs(Y - myGLCD.getFontHeight()*6) < 30) {
         // lower button, "Close"
-        g_pDoorStates->Touch_IsRequestingClose = true;
+        g_pDoorStates->Touch_IsRequestingClose->Write(true);
+        Serial.println("Close");
       }
     }
     else if (ToucherLoop(X,Y)) {
       BUMP_GUI_TIMER; // prevent or wake up from sleep
     }
-    else { // no touching
-      // clear button flags
-      g_pDoorStates->Touch_IsRequestingOpen = false;
-      g_pDoorStates->Touch_IsRequestingClose = false;
+    else if (!ToucherStillTouching(X,Y)) {
+      // clear button flags (leaves output on as long as user holds)
+      g_pDoorStates->Touch_IsRequestingOpen->Write(false);
+      g_pDoorStates->Touch_IsRequestingClose->Write(false);
     }
 
     if (PaintStatics) {
@@ -871,7 +1073,7 @@ void loop()
       myGLCD.print("Wayne Ross", LEFT, MAX_Y-12);
       myGLCD.print("(C)2017", RIGHT, MAX_Y-12);
       myGLCD.setColor(WHITE);
-      myGLCD.setBackColor(BLACK);
+      myGLCD.setBackColor(BLUE);
       myGLCD.print("C",MAX_X/2-myGLCD.getFontWidth()/2,3*MAX_Y/5-myGLCD.getFontHeight()/2);
       PaintStatics--; // should end up with 2 passes to draw everything back
       BUMP_GUI_TIMER; // prevent or wake up from sleep

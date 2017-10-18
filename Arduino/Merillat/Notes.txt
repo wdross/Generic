@@ -8,16 +8,10 @@ Decoding of trace file captured 8/18:
   . Emergency button states?
 
 
-As of 10/07/2017, need to:
+As of 10/18/2017, going to install:
 - Alter RxTest software on Uno to respond, making a simulator
   when a jumper or input is set (so no pgm change needed to just log)
 - AnalogObject's Open/Close90Percent are empty -- complete them??
-- GUI
-  - need a Jog mode for thruster movement
-  - From EEPROM setup screen, show times for each step of last cycle
-- would be nice:
-  - after an open/close cycle, display the time remaining of each state sequenced thru.
-    allows to see how close to 'failing' each state is (don't make it too tight!)
 
 Done:
 - Store/retrieve/validate data from EEPROM as good for 4 pairs of Max/Min
@@ -40,6 +34,7 @@ Done:
   Send 0x1016.1 = 0x0001012C (Using a Heart Beat message from us at NID 1 @ 90ms and
   they are as 300ms Heartbeat consumers)
 - Simulator (CanLogger) now responds to all outputs in a reasonable manner!!!
+- Ensure south door tracks closed first (5.3 degrees ahead)
 - GUI:
   - Appears to work with Seeed CAN module as long as using FlexiTimer2
   - All CAN inputs are represented (green background on text for Active inputs)
@@ -54,3 +49,6 @@ Done:
     - Long touch an Open/Close input request to start sequence
     - when in "MISSING COMMS", touch to see list of all nodes and which are OK vs Not
   - use EEPROM Min/Max to draw angles
+  - adde a Jog mode for all movements
+  - From Console, show times for each step of last cycle
+    allows to see how close to 'failing' each state is (don't make it too tight!)

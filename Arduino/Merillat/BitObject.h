@@ -26,7 +26,8 @@ inline INT8U BitObject::Read() {
 }
 inline void BitObject::Write(INT8U value)
 {
-  if (Address)
+  if (Address) {
     *Address = (*Address & ~(Mask<<Bit)) | ((value&Mask) << Bit);
+  }
 }
 #endif // BITOBJECT_H

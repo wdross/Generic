@@ -7,6 +7,7 @@ StateMachine::StateMachine(int maxStates) :
     _eventGenerated(false),
     _pEventData(NULL)
 {
+  Timer.SetTimer(0);
 }
 
 // generates an external event. called once per external event
@@ -34,8 +35,12 @@ void StateMachine::InternalEvent(unsigned char newState,
 {
     _pEventData = pData;
     _eventGenerated = true;
-    if (currentState != newState) // actually transitioning to a new state
+    if (currentState != newState) { // actually transitioning to a new state
       _previousState = currentState;
+      StateStruct* pStateMap = GetStateMap();
+      pStateMap[currentState].StateTime = Timer.GetExpiredBy();
+      Timer.SetTimer(0);
+    }
     currentState = newState;
 }
 

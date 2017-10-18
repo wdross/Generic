@@ -2,6 +2,7 @@
 #define STATE_MACHINE_H
 #include <stdio.h>
 #include "EventData.h"
+#include "CFwTimer.h"
 typedef unsigned int EErrorCode;
 
 struct StateStruct;
@@ -37,6 +38,7 @@ private:
     const int _maxStates;
     bool _eventGenerated;
     short int _previousState;
+    CFwTimer Timer; // time in each state
     EventData* _pEventData;
     void StateEngine(void);
 };
@@ -46,6 +48,7 @@ struct StateStruct
 {
     StateFunc pStateFunc;
     char *StateName;
+    unsigned long StateTime;
 };
 
 #define BEGIN_STATE_MAP \

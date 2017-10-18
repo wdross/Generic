@@ -1,16 +1,10 @@
-/*
- * DoorStates.h
- *
- *  Created on: Jun 23, 2017
- *      Author: W.Ross
- */
-
 #ifndef DOORSTATES_H
 #define DOORSTATES_H
 
 #include "IODefs.h"
 #include "CFwTimer.h"
 #include "StateMachine.h"
+#include "BitObject.h"
 
 // the door control state machine class
 class DoorStates : public StateMachine
@@ -22,33 +16,40 @@ public:
   inline long CurrentTime() {
     return OpenTimer.GetExpiredBy();
   }
-  bool Touch_IsRequestingClose;
-  bool Touch_IsRequestingOpen;
+  BitObject *Touch_IsRequestingOpen;
+  BitObject *Touch_IsRequestingClose;
 
+  void ShowAllTimes(char *Buffer=NULL);
+  void CheckForAbort(); // needs to interrupt internal state sequence if another button is pressed
 
 private:
-    // state machine state functions
+  // state machine state functions
 #define STATE_ITEM(x) void x();
 #include "DoorStatesFns.h" // defines all the void functions listed of the form "void x();"
 #undef STATE_ITEM
 
-    // state map to define state function order
-    BEGIN_STATE_MAP
+  // state map to define state function order
+  BEGIN_STATE_MAP
 #define STATE_ITEM(x) STATE_MAP_ENTRY(&DoorStates::x,x)
 #include "DoorStatesFns.h" // makes an entry pair a state structure map "{&DoorStates::ST_StateName, "ST_StateName"}"
 #undef STATE_ITEM
-    END_STATE_MAP
+  END_STATE_MAP
 
-    // state enumeration order must match the order of state
-    // method entries in the state map
-    enum E_States {
+  // state enumeration order must match the order of state
+  // method entries in the state map
+  enum E_States {
 #define STATE_ITEM(x) e##x, // makes the enumeration list of the form "eST_StateName,"
 #include "DoorStatesFns.h"
 #undef STATE_ITEM
-        ST_MAX_STATES // always the last one, not refered to elsewhere
-    };
+      ST_MAX_STATES // always the last one, not refered to elsewhere
+  };
 
-    CFwTimer OpenTimer;
-    CFwTimer ErrorTimer;
+  CFwTimer OpenTimer;
+  CFwTimer AirBagTimer;
+  CFwTimer ErrorTimer;
+  void ClearAllOutputs();
+  INT8U AnyMovementRequests(); // makes bitfield of any Open or Close request
+  INT8U MonitorInputs; // which bits of Open or Close request can be monitored
+  INT8U RequestStorage; // pointed to by BitObjects
 };
 #endif // DOORSTATES_H
