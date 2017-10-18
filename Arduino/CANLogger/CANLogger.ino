@@ -47,6 +47,17 @@ const struct CAN_Entry {
                       {1000,CAN_1000KBPS,"1,000,000"}
 };
 
+struct DoorOpenCloseInfo {
+  INT16U Closed, Opened;
+};
+enum DoorEnum {deWinterSouthDoor, deWinterNorthDoor, deUpperSouthDoor, deUpperNorthDoor, deNUM_DOORS};
+struct DoorOpenCloseInfo Doors[deNUM_DOORS] = { // 4
+  /*Winter_South_Door_Position*/ {15908,21802},
+  /*Upper_South_Door_Position */ {15705, 7727},
+  /*Winter_North_Door_Position*/ {15878, 8033},
+  /*Upper_North_Door_Position*/  {16389,24515}
+  };
+
 
 bool cycle = false;
 CFwTimer SYNCTimer;
@@ -86,14 +97,36 @@ void IncomingSYNC() {
 
   // Monitor and respond to upper door movement request
 #define UPPER_DOOR_MOVEMENT_RATE 125
-  if (Upper_South_Door_CLOSE)
+  static bool UpperSouthLatch = false;
+  if (Upper_South_Door_CLOSE) {
     Upper_South_Door_Position += UPPER_DOOR_MOVEMENT_RATE;
-  if (Upper_South_Door_OPEN)
+    if (!UpperSouthLatch)
+      Serial.println("Upper South Closing");
+    UpperSouthLatch = true;
+  }
+  else if (Upper_South_Door_OPEN) {
     Upper_South_Door_Position -= UPPER_DOOR_MOVEMENT_RATE;
-  if (Upper_North_Door_CLOSE)
+    if (!UpperSouthLatch)
+      Serial.println("Upper South Opening");
+    UpperSouthLatch = true;
+  }
+  else
+    UpperSouthLatch = false;
+  static bool UpperNorthLatch = false;
+  if (Upper_North_Door_CLOSE) {
     Upper_North_Door_Position -= 3*UPPER_DOOR_MOVEMENT_RATE/2;
-  if (Upper_North_Door_OPEN)
+    if (!UpperNorthLatch)
+      Serial.println("Upper North Closing");
+    UpperNorthLatch = true;
+  }
+  else if (Upper_North_Door_OPEN) {
     Upper_North_Door_Position += 4*UPPER_DOOR_MOVEMENT_RATE/5;
+    if (!UpperNorthLatch)
+      Serial.println("Upper North Opening");
+    UpperNorthLatch = true;
+  }
+  else
+    UpperNorthLatch = false;
 
   // monitor South Winter latch OPEN/Unlatch as well as CLOSE/Latch
   if (South_Winter_Latch == lr_Latch_Request)
@@ -102,14 +135,17 @@ void IncomingSYNC() {
     bitClear(Inputs.SouthDoorDIO_Rx,0); // first scan, show !unlatched
   if (Last_South_Winter_Latch != South_Winter_Latch && South_Winter_Latch) {
     South_Winter_Latch_Timer.SetTimer(6000);
+    Serial.println("South...");
   }
   Last_South_Winter_Latch = South_Winter_Latch;
   if (South_Winter_Latch && South_Winter_Latch_Timer.IsTimeout()) {
     if (South_Winter_Latch == lr_Unlatch_Request) {
       South_Winter_Lock_Open_IsUnlatched;
+      Serial.println("South Unlatched");
     }
     else {
       South_Winter_Lock_Open_IsLatched;
+      Serial.println("South Latched");
     }
   }
 
@@ -120,14 +156,17 @@ void IncomingSYNC() {
     bitClear(Inputs.NorthDoorDIO_Rx,2);
   if (Last_North_Winter_Latch != North_Winter_Latch && North_Winter_Latch) {
     North_Winter_Latch_Timer.SetTimer(5000);
+    Serial.println("North...");
   }
   Last_North_Winter_Latch = North_Winter_Latch;
   if (North_Winter_Latch && North_Winter_Latch_Timer.IsTimeout()) {
     if (North_Winter_Latch == lr_Unlatch_Request) {
       North_Winter_Lock_Open_IsUnlatched;
+      Serial.println("North Unlatched");
     }
     else {
       North_Winter_Lock_Open_IsLatched;
+      Serial.println("North Latched");
     }
   }
 
@@ -138,15 +177,35 @@ void IncomingSYNC() {
     bitClear(Inputs.SouthDoorDIO_Rx,2);
   if (Last_Center_Winter_Latch != Center_Winter_Latch && Center_Winter_Latch) {
     Center_Winter_Latch_Timer.SetTimer(7000);
+    Serial.println("Center...");
   }
   Last_Center_Winter_Latch = Center_Winter_Latch;
   if (Center_Winter_Latch && Center_Winter_Latch_Timer.IsTimeout()) {
     if (Center_Winter_Latch == lr_Unlatch_Request) {
       Winter_Lock_Closed_IsUnlatched;
+      Serial.println("Center Unlatched");
     }
     else {
       Winter_Lock_Closed_IsLatched; // show closed
+      Serial.println("Center Latched");
     }
+  }
+
+  static bool LastInflateNorth = false;
+  if (Inflate_North != LastInflateNorth) {
+    if (Inflate_North)
+      Serial.println("Inflating North");
+    else
+      Serial.println("Deflating North");
+    LastInflateNorth = Inflate_North;
+  }
+  static bool LastInflateSouth = false;
+  if (Inflate_South != LastInflateSouth) {
+    if (Inflate_South)
+      Serial.println("Inflating South");
+    else
+      Serial.println("Deflating South");
+    LastInflateSouth = Inflate_South;
   }
 
   // monitor any outgoing Open/Close requests: allow on for 4-seconds only
@@ -199,12 +258,12 @@ void IncomingSYNC() {
       LastThrust[SOUTH_INSTANCE] > MIN_THRUST) {
     INT16S pos = Winter_South_Door_Position;
     if (LastDir[SOUTH_INSTANCE] == DIRECTION_OPEN) { // opposite direction as NORTH
-      pos += Outputs.Thrusters[SOUTH_INSTANCE].Thrust/4;
+      pos += Outputs.Thrusters[SOUTH_INSTANCE].Thrust/6;
       if (pos < Winter_South_Door_Position)
         pos = Winter_South_Door_Position; // don't allow wrapping
     }
     else {
-      pos -= Outputs.Thrusters[SOUTH_INSTANCE].Thrust/4;
+      pos -= Outputs.Thrusters[SOUTH_INSTANCE].Thrust/6;
       if (pos > Winter_South_Door_Position)
         pos = Winter_South_Door_Position; // don't allow wrapping
     }

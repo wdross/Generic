@@ -122,7 +122,9 @@ struct {
 //                            OUR ACTUAL INPUTS
 #define South_Winter_Latch                 FIELD(Outputs.SouthDoorDIO_Tx,0,2) // 2 bits, 0 & 1
 #define Center_Winter_Latch                FIELD(Outputs.SouthDoorDIO_Tx,2,2) // 2 bits, 2 & 3
+#define Inflate_South                      bitRead(Outputs.SouthDoorDIO_Tx,4)
 #define North_Winter_Latch                 FIELD(Outputs.NorthDoorDIO_Tx,0,2)
+#define Inflate_North                      bitRead(Outputs.NorthDoorDIO_Tx,6)
 
 #define Upper_South_Door_OPEN              bitRead(Outputs.SouthHydraulic_Tx,0)
 #define Upper_South_Door_CLOSE             bitRead(Outputs.SouthHydraulic_Tx,1)
