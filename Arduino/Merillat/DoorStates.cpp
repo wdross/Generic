@@ -75,11 +75,9 @@ INT8U DoorStates::AnyMovementRequests()
   // make a bit-wise mask of all input sources
   // can be used as a bool or bitfield as the need requires
   return(Remote_IsRequestingClose.Read() << 0 |
-         Local_IsRequestingClose.Read() << 1 |
-         Touch_IsRequestingClose->Read() << 2 |
-         Remote_IsRequestingOpen.Read() << 3 |
-         Local_IsRequestingOpen.Read() << 4 |
-         Touch_IsRequestingOpen->Read() << 5);
+         Touch_IsRequestingClose->Read() << 1 |
+         Remote_IsRequestingOpen.Read() << 2 |
+         Touch_IsRequestingOpen->Read() << 3);
 }
 
 
@@ -147,7 +145,6 @@ void DoorStates::CheckForAbort()
 void DoorStates::ST_IsOpen()
 {
   if (Remote_IsRequestingOpen.Read() ||
-      Local_IsRequestingOpen.Read() ||
       Touch_IsRequestingOpen->Read())
     return; // The request to open is still active -- don't begin Close sequence
 
@@ -155,7 +152,6 @@ void DoorStates::ST_IsOpen()
     return; // system isn't enabled, don't run state machine
 
   if (Remote_IsRequestingClose.Read() ||
-      Local_IsRequestingClose.Read() ||
       Touch_IsRequestingClose->Read()) {
     // switch to CLOSE state machine
     ErrorTimer.SetTimer(INFINITE);
@@ -170,7 +166,6 @@ void DoorStates::ST_IsOpen()
 void DoorStates::ST_IsClosed()
 {
   if (Remote_IsRequestingClose.Read() ||
-      Local_IsRequestingClose.Read() ||
       Touch_IsRequestingClose->Read())
     return; // The request to close is still active -- don't begin Open sequence
 
@@ -178,7 +173,6 @@ void DoorStates::ST_IsClosed()
     return; // system isn't enabled, don't run state machine
 
 if (Remote_IsRequestingOpen.Read() ||
-    Local_IsRequestingOpen.Read() ||
     Touch_IsRequestingOpen->Read()) {
     // switch to OPEN state machine
     ErrorTimer.SetTimer(INFINITE);

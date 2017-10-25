@@ -332,23 +332,6 @@ extern
 #ifndef DEFINE_BITOBJECTS
 extern
 #endif
-       BitObject Local_IsRequestingOpen
-#ifdef DEFINE_BITOBJECTS
-                                         (&Inputs.NorthHydraulic_Rx,4)
-#endif
-                                                                      ;
-#ifndef DEFINE_BITOBJECTS
-extern
-#endif
-       BitObject Local_IsRequestingClose
-#ifdef DEFINE_BITOBJECTS
-                                         (&Inputs.NorthHydraulic_Rx,5)
-#endif
-                                                                      ;
-
-#ifndef DEFINE_BITOBJECTS
-extern
-#endif
        BitObject Center_Winter_Latch
 #ifdef DEFINE_BITOBJECTS
                                          (&Outputs.SouthDoorDIO_Tx,2,2)

@@ -122,7 +122,8 @@ myEEPayloadType EECopy;
 // +/-45 degrees away from zero is our valid setpoints
 #define FORTYFIVEDEG 4192 // these are 15-bit BDEG, so off by a power of 2
 #define MINUS_FORTYFIVEDEG (32767-FORTYFIVEDEG)
-#define INC_DEC 22 // There is about 91 counts to a degree, so 22 is about 1/4 degree
+#define INC_DEC 22 // There is about 91 counts to a degree, so 22 is about 1/4 degree, or 3.5"
+                   // The 100ms update rate and 90 deg motion in 60 seconds yields 0.15 deg per update
 
 typedef void (*funcOper)(int t); // I want to be able to call functions that operate on an EEPROM address
 struct {
@@ -938,10 +939,8 @@ void loop()
       // Requests coming from remote control:
       {"Remote Open", MAX_X/2-myGLCD.getFontWidth()*9,myGLCD.getFontHeight()*3, true,&Remote_IsRequestingOpen},
       {"Remote Close",MAX_X/2-myGLCD.getFontWidth()*9,myGLCD.getFontHeight()*4, true,&Remote_IsRequestingClose},
-      {"Local",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*3, true,&Local_IsRequestingOpen},
-      {"Local",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*4, true,&Local_IsRequestingClose},
-      {" ",           MAX_X/2+myGLCD.getFontWidth()*3,myGLCD.getFontHeight()*3, true,g_pDoorStates->Touch_IsRequestingOpen},
-      {" ",           MAX_X/2+myGLCD.getFontWidth()*3,myGLCD.getFontHeight()*4, true,g_pDoorStates->Touch_IsRequestingClose},
+      {"Touch",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*3, true,g_pDoorStates->Touch_IsRequestingOpen},
+      {"Touch",       MAX_X/2+myGLCD.getFontWidth()*4,myGLCD.getFontHeight()*4, true,g_pDoorStates->Touch_IsRequestingClose},
       {"System Enabled",(MAX_X-myGLCD.getFontWidth()*14)/2,myGLCD.getFontHeight()*5, true,&System_Enable},
       // south latch
       {"U",    2,                                  MAX_Y/3,                         true,&South_Winter_Lock_Open_IsUnlatched},
