@@ -174,10 +174,22 @@ void DoorStates::ST_IsClosed()
 
 if (Remote_IsRequestingOpen.Read() ||
     Touch_IsRequestingOpen->Read()) {
-    // switch to OPEN state machine
     ErrorTimer.SetTimer(INFINITE);
-    OpenTimer.SetTimer(ACTUATOR_TIME); // Actuator takes 10s for full transition
-    InternalEvent(eST_Unlock);
+    // switch to an OPEN state machine
+
+    // let's check -- if the winter doors are all the way open already,
+    // skip to opening the Upper doors.  Allows restarting motion
+    if (Winter_South_Door_Position.Open90Percent() &&
+        South_Winter_Lock_Open_IsLatched.Read() &&
+        Winter_North_Door_Position.Open90Percent() &&
+        North_Winter_Lock_Open_IsLatched.Read()) {
+      InternalEvent(eST_OpenUpperDoors);
+      OpenTimer.SetTimer(UPPER_DOORS_OPEN_TIME);
+    }
+    else {
+      OpenTimer.SetTimer(ACTUATOR_TIME); // Actuator takes 10s for full transition
+      InternalEvent(eST_Unlock);
+    }
   }
 }
 
@@ -517,7 +529,7 @@ void DoorStates::ST_Error()
 
   // keep checking for an open or close request, from the middle of whereever we are
   ST_IsOpen(); // can ask to close if was partway thru open or close
-//  ST_IsClosed();
+  ST_IsClosed();
 }
 
 void DoorStates::ShowAllTimes(char *Buffer)
