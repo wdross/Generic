@@ -199,11 +199,6 @@ extern myEEType myEE;
 extern OutputType Outputs;
 extern InputType  Inputs;
 
-// Dimensional defines, defines decision points
-#define MIN_THRUST 50  // 1024ths thrust
-#define MAX_THRUST 512 // 1024ths thrust
-#define NO_THRUST 0
-
 #endif // IODEFS_INCLUDED
 
 // Depending upon desire to create instances of BitObjects, we'll be doing extern or not

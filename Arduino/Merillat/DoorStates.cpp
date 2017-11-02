@@ -1,13 +1,5 @@
 #include "DoorStates.h"
 
-#define ACTUATOR_TIME 12000
-#define UPPER_DOORS_CLOSE_TIME 90000
-#define UPPER_DOORS_OPEN_TIME 90000
-#define CLOSE_WINTER_TIME (2*60+40)*1000
-#define OPEN_WINTER_TIME (2*60+40)*1000
-#define AIRBAG_TIME 9000
-#define SOUTH_DOOR_LEAD DEGREES_TO_RADIANS(5.3) // South door needs to lead North door by 5.3 degrees so they overlap correctly
-
 //!
 //! Constructor... Initialize all the values.
 //!
@@ -89,6 +81,8 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
   ClearAllOutputs();
   OpenTimer.SetTimer(INFINITE);
 
+  ErrorTimer.SetTimer(INFINITE);
+
   // Don't allow any buttons to appear to be hard-wired on
   if (AnyMovementRequests())
     return;
@@ -113,16 +107,26 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
 
     InternalEvent(eST_IsClosed);
   }
+  //
+  InternalEvent(eST_Error);
+}
+
+
+bool DoorStates::InAStationaryState()
+{
+  if (GetCurrentState() == eST_IsOpen ||
+      GetCurrentState() == eST_IsClosed ||
+      GetCurrentState() == eST_AwaitFullyOpenOrFullyClosed ||
+      GetCurrentState() == eST_Error)
+    return(true);
+  return(false);
 }
 
 
 void DoorStates::CheckForAbort()
 {
   // test inputs that should interrupt door progress
-  if (GetCurrentState() == eST_IsOpen ||
-      GetCurrentState() == eST_IsClosed ||
-      GetCurrentState() == eST_AwaitFullyOpenOrFullyClosed ||
-      GetCurrentState() == eST_Error) {
+  if (InAStationaryState()) {
     MonitorInputs = 0; // clear which ones we'll look at
     return; // nothing to do in these states, not actively trying to move
   }
@@ -155,8 +159,19 @@ void DoorStates::ST_IsOpen()
       Touch_IsRequestingClose->Read()) {
     // switch to CLOSE state machine
     ErrorTimer.SetTimer(INFINITE);
-    OpenTimer.SetTimer(UPPER_DOORS_CLOSE_TIME); // Big doors take about a minute
-    InternalEvent(eST_CloseUpperDoors);
+
+    if (Upper_South_Door_Position.IsClosed() && Upper_North_Door_Position.IsClosed()) {
+      Upper_North_Door.Write(lr_No_Request);
+      Upper_South_Door.Write(lr_No_Request);
+      OpenTimer.SetTimer(ACTUATOR_TIME);
+      InternalEvent(eST_UnLockOpenWinterDoors);
+    }
+    else {
+      OpenTimer.SetTimer(UPPER_DOORS_CLOSE_TIME); // Big doors take about a minute
+      Upper_South_Door_Position.Reset(ROC_CLOSING);
+      Upper_North_Door_Position.Reset(ROC_CLOSING);
+      InternalEvent(eST_CloseUpperDoors);
+    }
   }
 }
 
@@ -171,6 +186,7 @@ void DoorStates::ST_IsClosed()
 
   if (!System_Enable.Read())
     return; // system isn't enabled, don't run state machine
+
 
 if (Remote_IsRequestingOpen.Read() ||
     Touch_IsRequestingOpen->Read()) {
@@ -230,6 +246,8 @@ void DoorStates::ST_Unlock()
     South_Winter_Latch.Write(lr_No_Request);
     Center_Winter_Latch.Write(lr_No_Request);
     OpenTimer.SetTimer(OPEN_WINTER_TIME);
+    Winter_South_Door_Position.Reset(ROC_WINTER);
+    Winter_North_Door_Position.Reset(ROC_WINTER);
     InternalEvent(eST_MoveOpenWinterDoors);
   }
   else if (OpenTimer.IsTimeout()) {
@@ -245,14 +263,14 @@ void DoorStates::ST_Unlock()
 void DoorStates::ST_MoveOpenWinterDoors()
 {
   // if RateOfChange shows we're stalled after we've moved enough to open, move to next state
-  if (Winter_South_Door_Position.IsSlow() &&
+  if (Winter_South_Door_Position.IsWinterSlow() &&
       Winter_South_Door_Position.Open90Percent()) {
     Outputs.Thrusters[SOUTH_INSTANCE].Thrust = MIN_THRUST;
   }
   else
     Outputs.Thrusters[SOUTH_INSTANCE].Thrust = MAX_THRUST;
   Outputs.Thrusters[SOUTH_INSTANCE].Direction = DIRECTION_OPEN;
-  if (Winter_North_Door_Position.IsSlow() &&
+  if (Winter_North_Door_Position.IsWinterSlow() &&
       Winter_North_Door_Position.Open90Percent()) {
     Outputs.Thrusters[NORTH_INSTANCE].Thrust = MIN_THRUST;
   }
@@ -266,14 +284,21 @@ void DoorStates::ST_MoveOpenWinterDoors()
     // we leave both thrusters running on low as we lock the doors open
     return;
   }
-  // Still here means we're not open yet, calculate a velocity for thrust for each door
-  // depending upon its current position.
-  // for now, we just leave the thrusters running at the MAX_THRUST, which is ~50%
 
   if (OpenTimer.IsTimeout()) {
     // all outputs are cleared within ST_Error
     InternalEvent(eST_Error);
   }
+
+  // Still here means we're not open yet, calculate a velocity for thrust for each door
+  // depending upon its current position.
+  // for now, we just leave the thrusters running at the MAX_THRUST, which is ~50%
+
+//  if (Winter_North_Door_Position.Open90Percent()) {
+//    // DEGREES_CHANGE is 84 (amount of winter movement)
+//    // AngleFromClosed()
+//    Outputs.Thrusters[NORTH_INSTANCE].Thrust =
+//  }
 }
 
 //!
@@ -352,7 +377,7 @@ void DoorStates::ST_OpenUpperDoors()
 //!
 void DoorStates::ST_CloseUpperDoors()
 {
-  bool NorthClose = Upper_North_Door_Position.IsClosed();
+  bool NorthClose = Upper_North_Door_Position.IsClosingSlow() && Upper_North_Door_Position.IsClosed();
   if (NorthClose) {
     Upper_North_Door.Write(lr_No_Request);
   }
@@ -360,7 +385,7 @@ void DoorStates::ST_CloseUpperDoors()
     Upper_North_Door.Write(lr_Latch_Request);
   }
 
-  bool SouthClose = Upper_South_Door_Position.IsClosed();
+  bool SouthClose = Upper_South_Door_Position.IsClosingSlow() && Upper_South_Door_Position.IsClosed();
   if (SouthClose) {
     Upper_South_Door.Write(lr_No_Request);
   }
@@ -416,6 +441,8 @@ void DoorStates::ST_UnLockOpenWinterDoors()
     Center_Winter_Latch.Write(lr_No_Request);
     OpenTimer.SetTimer(CLOSE_WINTER_TIME);
     AirBagTimer.SetTimer(AIRBAG_TIME);
+    Winter_South_Door_Position.Reset(ROC_WINTER);
+    Winter_North_Door_Position.Reset(ROC_WINTER);
     InternalEvent(eST_MoveWinterDoorsClosed);
   }
   else if (OpenTimer.IsTimeout()) {
@@ -431,7 +458,7 @@ void DoorStates::ST_MoveWinterDoorsClosed()
 {
   // if RateOfChange shows we're stalled after we've moved enough to open, move to next state
   Outputs.Thrusters[SOUTH_INSTANCE].Direction = DIRECTION_CLOSE;
-  if (Winter_South_Door_Position.IsSlow() &&
+  if (Winter_South_Door_Position.IsWinterSlow() &&
       Winter_South_Door_Position.Close90Percent()) {
     Outputs.Thrusters[SOUTH_INSTANCE].Thrust = MIN_THRUST;
   }
@@ -439,14 +466,19 @@ void DoorStates::ST_MoveWinterDoorsClosed()
     Outputs.Thrusters[SOUTH_INSTANCE].Thrust = MAX_THRUST;
   Outputs.Thrusters[NORTH_INSTANCE].Direction = DIRECTION_CLOSE;
   float SouthFromClosed = Winter_South_Door_Position.AngleFromClosed();
-  if (Winter_North_Door_Position.IsSlow() &&
+  float NorthFromClosed = Winter_North_Door_Position.AngleFromClosed();
+  if (Winter_North_Door_Position.IsWinterSlow() &&
       Winter_North_Door_Position.Close90Percent()) {
     Outputs.Thrusters[NORTH_INSTANCE].Thrust = MIN_THRUST;
   }
   else if (SouthFromClosed < DEGREES_TO_RADIANS(45) &&
            Outputs.Thrusters[SOUTH_INSTANCE].Thrust > MIN_THRUST &&
-           SouthFromClosed+SOUTH_DOOR_LEAD > Winter_North_Door_Position.AngleFromClosed())
-    Outputs.Thrusters[NORTH_INSTANCE].Thrust = MIN_THRUST*2; // go slower
+           SouthFromClosed+SOUTH_DOOR_LEAD > NorthFromClosed) {
+    if (SouthFromClosed < NorthFromClosed)
+      Outputs.Thrusters[NORTH_INSTANCE].Thrust = MIN_THRUST; // go slower
+    else
+      Outputs.Thrusters[NORTH_INSTANCE].Thrust = NO_THRUST; // go slower
+  }
   else
     Outputs.Thrusters[NORTH_INSTANCE].Thrust = MAX_THRUST;
   if (AirBagTimer.IsTimeout()) {
@@ -456,6 +488,10 @@ void DoorStates::ST_MoveWinterDoorsClosed()
   else {
     Inflate_North.Write(1);
     Inflate_South.Write(1);
+    if (Outputs.Thrusters[NORTH_INSTANCE].Thrust == MAX_THRUST)
+      Outputs.Thrusters[NORTH_INSTANCE].Thrust = BOOST_THRUST;
+    if (Outputs.Thrusters[SOUTH_INSTANCE].Thrust == MAX_THRUST)
+      Outputs.Thrusters[SOUTH_INSTANCE].Thrust = BOOST_THRUST;
   }
   if (Outputs.Thrusters[SOUTH_INSTANCE].Thrust == MIN_THRUST &&
       Outputs.Thrusters[NORTH_INSTANCE].Thrust == MIN_THRUST) {
@@ -517,7 +553,7 @@ void DoorStates::ST_Error()
   // monitor for inputs to indicate the doors are either fully open or fully closed,
   // from which state we can begin again the open/close processing.
   // if inputs are correct, we'll roll into Open or Closed
-  ST_AwaitFullyOpenOrFullyClosed();
+//  ST_AwaitFullyOpenOrFullyClosed();
 
   if (!AllMovementRequestsCleared &&
        AnyMovementRequests())

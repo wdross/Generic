@@ -5,12 +5,13 @@
 #include "CFwTimer.h"
 extern ITDB02 myGLCD;
 
-#define ROC_RATE 1000 // ms to recompute Rate Of Change during Open/Close cycle
+#define ROC_WINTER 7000 // ms to recompute Rate Of Change during Open/Close cycle
+#define ROC_CLOSING 7000 // ms
 #define CLOSED_TOLERANCE 45 // there is about 91 counts in a degree
 #define OPENED_TOLERANCE CLOSED_TOLERANCE
 
 // rough calculation shows 84 deg/140 sec = 0.6 deg/sec, so 22/1000 is ~0.25dg/sec
-#define SLOW_TOLERANCE 22 // smaller than this counts in ROC time means 'slow'
+#define SLOW_TOLERANCE 45 // smaller than this counts in ROC time means 'slow'
 
 #define ANALOG_TO_RADIANS(a) (((float)(a) / 32767.0) * 2.0 * M_PI)
 #define DEGREES_TO_RADIANS(d) (((float)(d) / 180.0) * M_PI)
@@ -33,7 +34,8 @@ public:
   inline AnalogObject(INT16U *address, DoorOpenCloseInfo *di, bool north, bool upper);
   inline bool IsClosed();
   inline bool IsOpen();
-  inline bool IsSlow();
+  inline bool IsWinterSlow();
+  inline bool IsClosingSlow();
   inline INT16U Value();
   inline bool Open90Percent();
   inline bool Close90Percent();
@@ -42,7 +44,7 @@ public:
 
   // for doing Rate Of Change determination
   inline void Cancel();
-  inline void Reset();
+  inline void Reset(int t);
 
 private:
   INT16U *Address;
@@ -51,7 +53,7 @@ private:
   bool Upper; // is it the upper door (that moves 90 deg) or Winter (that moves less?)
 
   CFwTimer RateOfChangeTimer;
-  INT16U LastPosition;
+  int LastPosition;
   INT16U LastMovement;
 };
 
@@ -61,6 +63,7 @@ inline AnalogObject::AnalogObject(INT16U *address, DoorOpenCloseInfo *di, bool n
   _DI = di;
   North = north;
   Upper = upper;
+  Reset(ROC_WINTER);
 }
 
 inline bool AnalogObject::IsClosed() {
@@ -147,9 +150,9 @@ inline void AnalogObject::Cancel() {
   RateOfChangeTimer.SetTimer(INFINITE);
 }
 
-inline void AnalogObject::Reset() {
-  RateOfChangeTimer.SetTimer(ROC_RATE);
-  LastMovement = *Address;
+inline void AnalogObject::Reset(int t) {
+  RateOfChangeTimer.SetTimer(t);
+  LastMovement = (SLOW_TOLERANCE*2); // default to not yet
 }
 
 inline bool AnalogObject::Open90Percent() {
@@ -160,14 +163,28 @@ inline bool AnalogObject::Close90Percent() {
   return(IsClosed());
 }
 
-inline bool AnalogObject::IsSlow() {
+inline bool AnalogObject::IsWinterSlow() {
   // once we trace manual movement data, we'll have a pretty good idea what
   // this should look like.
   if (RateOfChangeTimer.IsTimeout()) {
-    INT16U CurrentPosition = *Address;
+    int CurrentPosition = *Address;
     LastMovement = abs(CurrentPosition - LastPosition);
     LastPosition = CurrentPosition;
-    RateOfChangeTimer.ResetTimer();
+    RateOfChangeTimer.SetTimer(ROC_WINTER);
+    Serial.print(":"); Serial.print(LastMovement); Serial.println(":");
+  }
+  return(LastMovement < SLOW_TOLERANCE);
+}
+
+inline bool AnalogObject::IsClosingSlow() {
+  // once we trace manual movement data, we'll have a pretty good idea what
+  // this should look like.
+  if (RateOfChangeTimer.IsTimeout()) {
+    int CurrentPosition = *Address;
+    LastMovement = abs(CurrentPosition - LastPosition);
+    LastPosition = CurrentPosition;
+    RateOfChangeTimer.SetTimer(ROC_CLOSING);
+    Serial.print(":"); Serial.print(LastMovement); Serial.println(":");
   }
   return(LastMovement < SLOW_TOLERANCE);
 }

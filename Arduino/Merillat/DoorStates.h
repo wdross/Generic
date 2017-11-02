@@ -6,6 +6,19 @@
 #include "StateMachine.h"
 #include "BitObject.h"
 
+#define ACTUATOR_TIME 12000
+#define UPPER_DOORS_CLOSE_TIME 90000
+#define UPPER_DOORS_OPEN_TIME 90000
+#define CLOSE_WINTER_TIME (3*60LL)*1000LL
+#define OPEN_WINTER_TIME (3*60LL)*1000LL
+#define AIRBAG_TIME 11000
+#define SOUTH_DOOR_LEAD DEGREES_TO_RADIANS(4.3) // South door needs to lead North door by 5.3 degrees so they overlap correctly
+
+#define MIN_THRUST 300  // 1024ths thrust
+#define MAX_THRUST 512 // 1024ths thrust
+#define BOOST_THRUST 700 // 70%
+#define NO_THRUST 0
+
 // the door control state machine class
 class DoorStates : public StateMachine
 {
@@ -20,6 +33,7 @@ public:
   BitObject *Touch_IsRequestingClose;
 
   void ShowAllTimes(char *Buffer=NULL);
+  bool InAStationaryState(); // returns true if stationary
   void CheckForAbort(); // needs to interrupt internal state sequence if another button is pressed
 
 private:

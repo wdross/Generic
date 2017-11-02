@@ -120,7 +120,7 @@ unsigned long CalcChecksum(INT8U *src, int length) {
 myEEPayloadType EECopy;
 
 // +/-45 degrees away from zero is our valid setpoints
-#define FORTYFIVEDEG 4192 // these are 15-bit BDEG, so off by a power of 2
+#define FORTYFIVEDEG 3192 // Little bit less than 45; these are 15-bit BDEG, so off by a power of 2
 #define MINUS_FORTYFIVEDEG (32767-FORTYFIVEDEG)
 #define INC_DEC 22 // There is about 91 counts to a degree, so 22 is about 1/4 degree, or 3.5"
                    // The 100ms update rate and 90 deg motion in 60 seconds yields 0.15 deg per update
@@ -219,6 +219,7 @@ void MoveLatch(int t) { // latch jog
 } // MoveLatch
 
 
+bool JoggingActive = false;
 void JogMode(int t) {
   int X,Y,i; // touch inputs
   char Title[20];
@@ -278,6 +279,7 @@ void JogMode(int t) {
   myGLCD.print(Title, X, Y);
   TouchEntry(2,3,X,Y,strlen(Title),&MoveLatch,(INT16U*)lr_Latch_Request,&Center_Winter_Latch);
 
+#define INDENT 5
   while (Activity.IsTiming()) {
     char digits[20];
     long ct = Activity.GetExpiredBy()/1000;
@@ -285,6 +287,32 @@ void JogMode(int t) {
     myGLCD.setColor(WHITE);
     myGLCD.setBackColor(BLACK);
     myGLCD.print(digits,CENTER,MAX_Y-12);
+
+    // update state of inputs that are relative to the outputs that control them
+    // the subscripts of DoorInfo that relate to their positions on the screen:
+    // [ 2   3 ]
+    // [ 0   1 ]
+    // so (i&1) indicates 'North' (or Right)
+    myGLCD.setColor(GREEN);
+    for (i=0; i<deNUM_DOORS; i++) {
+      sprintf((char*)&Title,"%5d",DoorInfo[i].Position->Value());
+      Y = i>1?9:33; // 4.5 and 10.5, each times 2
+      Y = myGLCD.getFontHeight()*Y/2;
+      X = (i&1)?MAX_X-INDENT-myGLCD.getFontWidth()*strlen(Title):INDENT;
+      myGLCD.print(Title,X,Y);
+    }
+    char *ulb[] = {"        ","Unlocked"," Locked "," ?both? "};
+    BitObject *bo[] = {&South_Winter_Lock_Open_IsUnlatched,&South_Winter_Lock_Open_IsLatched,
+                       &Winter_Lock_Closed_IsUnlatched,    &Winter_Lock_Closed_IsLatched,
+                       &North_Winter_Lock_Open_IsUnlatched,&North_Winter_Lock_Open_IsLatched};
+    for (i=0; i<3; i++) {
+      // print out the status of the 3 actuators (3 pairs above)
+      int pattern = (bo[i*2+1]->Read()<<1) | bo[i*2]->Read(); // 0:Neither; 1:Unlatched; 2:Latched; 3:Both
+      X = (i==0)?LEFT:((i==1)?CENTER:MAX_X-INDENT-myGLCD.getFontWidth()*strlen(ulb[pattern]));
+      Y = (i==1)?31:21; // 15.5 or 7.5, each times 2
+      Y = myGLCD.getFontHeight()*Y/2;
+      myGLCD.print(ulb[pattern],X,Y);
+    }
 
     if (ToucherLoop(X,Y,500)) {
       Activity.ResetTimer(); // restart counting from 'now'
@@ -299,6 +327,7 @@ void JogMode(int t) {
           Touches[i].fo(i); // run it
           myGLCD.setBackColor(RED);
           myGLCD.print("      ",CENTER,myGLCD.getFontHeight());
+          JoggingActive = true;
           break; // quit looking
         }
       }
@@ -309,6 +338,7 @@ void JogMode(int t) {
     else if (ToucherStartedTouching(X,Y)) // touching, but not long enough yet
       Activity.ResetTimer(); // retart from 'now'
     else if (!ToucherStillTouching(X,Y)) {
+      JoggingActive = false;
       // kill motion they aren't touching any longer; this will get hit *a lot*
       Outputs.Thrusters[SOUTH_INSTANCE].Direction = DIRECTION_NONE;
       Outputs.Thrusters[SOUTH_INSTANCE].Thrust = NO_THRUST;
@@ -325,6 +355,7 @@ void JogMode(int t) {
     else // still touching, stay on this screen
       Activity.ResetTimer(); // restart counting from 'now'
   } // while timer indicates activity
+  JoggingActive = false;
 
   myGLCD.clrScr(); // erase screen on the way out
 }
@@ -563,14 +594,34 @@ void ThrusterParser() {
         Inputs.Thrusters[0].SleipnerDeviceInstance < 3) {
       // last frame, copy it over
       Inputs.Thrusters[Inputs.Thrusters[0].SleipnerDeviceInstance] = Inputs.Thrusters[0];
-#if 0
+#if 1
+      static INT8U which = 0;
+      which |= (1 << Inputs.Thrusters[0].SleipnerDeviceInstance);
       char line[100];
-      sprintf(line,"NDB=%d, MC=%d, IG=%d, Sdt=%d Sdi=%d Status=%d, MT=%d PT=%d, V=%d, Amps=%d, OpenThrust=%d",
-              Inputs.Thrusters[0].NDB,Inputs.Thrusters[0].ManufacturerCode,Inputs.Thrusters[0].IndustryGroup,
-              Inputs.Thrusters[0].SleipnerDeviceType,Inputs.Thrusters[0].SleipnerDeviceInstance,Inputs.Thrusters[0].Status,
-              Inputs.Thrusters[0].ThrusterMotorTemperature,Inputs.Thrusters[0].ThrusterPowerTemperature,Inputs.Thrusters[0].MotorVoltage,
-              Inputs.Thrusters[0].MotorCurrent,Inputs.Thrusters[0].OutputThrust);
+//      sprintf(line,"NDB=%d, MC=%d, IG=%d, Sdt=%d Sdi=%d Status=%d, MT=%d PT=%d, V=%d, Amps=%d, OpenThrust=%d",
+//              Inputs.Thrusters[0].NDB,Inputs.Thrusters[0].ManufacturerCode,Inputs.Thrusters[0].IndustryGroup,
+//              Inputs.Thrusters[0].SleipnerDeviceType,Inputs.Thrusters[0].SleipnerDeviceInstance,Inputs.Thrusters[0].Status,
+//              Inputs.Thrusters[0].ThrusterMotorTemperature,Inputs.Thrusters[0].ThrusterPowerTemperature,Inputs.Thrusters[0].MotorVoltage,
+//              Inputs.Thrusters[0].MotorCurrent,Inputs.Thrusters[0].OutputThrust);
+    if (!JoggingActive && g_pDoorStates->InAStationaryState())
+      which = 0; // prevent display
+    if (which == 0x6) { // both thrusters have been updated, output all values
+      //       Serial.println("mSec,S Winter, S Upper,N Winter, N Upper");
+      INT32U t = millis();
+      sprintf(line,"%4ld.%03d,%4d%%,%7d,%3d,%7d,%4d%%,%7d,%3d,%7d",
+                    t/1000,
+                        int(t%1000),
+                           Outputs.Thrusters[SOUTH_INSTANCE].Thrust,
+                             Winter_South_Door_Position.Value(),
+                                 Inputs.Thrusters[NORTH_INSTANCE].ThrusterMotorTemperature,
+                                     Upper_South_Door_Position.Value(),
+                                     Outputs.Thrusters[NORTH_INSTANCE].Thrust,
+                                         Winter_North_Door_Position.Value(),
+                                             Inputs.Thrusters[SOUTH_INSTANCE].ThrusterMotorTemperature,
+                                                 Upper_North_Door_Position.Value());
       Serial.println(line);
+      which = 0; // wipe, wait until both report again
+    }
 #endif
       Inputs.Thrusters[0].fc_sn.FC = -1; // tag such that can't accept another packet
     }
