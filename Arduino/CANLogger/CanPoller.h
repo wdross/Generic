@@ -13,7 +13,7 @@
 #define SPI_CS_PIN 9
 #define CAN_TX_INTERVAL 90 // ms
 
-typedef void (*voidFuncPtr)(void);
+typedef void (*voidFuncPtr)(int idx);
 
 struct CanEntryType {
   INT32U COBID;

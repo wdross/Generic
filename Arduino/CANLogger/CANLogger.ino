@@ -21,32 +21,6 @@ const byte RawArray[] PROGMEM = {
 0xC1,0x44,0x1C,0x00,0xEB,0x04,0x00,0x00,
 0xC2,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF};
 
-const struct CAN_Entry {
-  int kBaud;
-  int CAN_Konstant;
-  const char *rate;
-} CANBaudLookup[] = {
-                      {0,0,"placeholder"},
-                      {5,CAN_5KBPS,"5,000"},
-                      {10,CAN_10KBPS,"10,000"},
-                      {20,CAN_20KBPS,"20,000"},
-                      {25,CAN_25KBPS,"25,000"},
-                      {31,CAN_31K25BPS,"31,000"},
-                      {33,CAN_33KBPS,"33,000"},
-                      {40,CAN_40KBPS,"40,000"},
-                      {50,CAN_50KBPS,"50,000"},
-                      {80,CAN_80KBPS,"80,000"},
-                      {83,CAN_83K3BPS,"83,000"},
-                      {95,CAN_95KBPS,"95,000"},
-                      {100,CAN_100KBPS,"100,000"},
-                      {125,CAN_125KBPS,"125,000"},
-                      {200,CAN_200KBPS,"200,000"},
-                      {250,CAN_250KBPS,"250,000"},
-                      {500,CAN_500KBPS,"500,000"},
-                      {666,CAN_666KBPS,"666,000"},
-                      {1000,CAN_1000KBPS,"1,000,000"}
-};
-
 struct DoorOpenCloseInfo {
   INT16U Closed, Opened;
 };
@@ -62,6 +36,41 @@ struct DoorOpenCloseInfo Doors[deNUM_DOORS] = { // 4
 bool cycle = false;
 CFwTimer SYNCTimer;
 
+bool Tracing = false; // by default, don't trace Analog
+void DumpAnalog(int index) {
+  // could be we just Rx'd a message when we are compiled for DO_LOGGING
+  // or we'll get called when we Tx'd a message if we are emulating the sensors
+  // Dump out properly formatted data if so enabled
+  if (Tracing) {
+    INT32U thisTime = millis();
+    static INT8U which = 0;
+#if defined(DO_LOGGING)
+    // the call-back is for one of the buffers -- which one?
+    // once we see both, we'll dump out a single line
+    if (CanInBuffers[index].Can.COBID == SOUTHDOORANALOG_RX_COBID)
+      which |= 0x1;
+    if (CanInBuffers[index].Can.COBID == NORTHDOORANALOG_RX_COBID)
+      which |= 0x2;
+#else
+    // the call-back is us sending both values, so set it up for output
+    which |= 0x3; // both
+#endif
+    // which contains which buffers have updated -- decide which ones we want to trace and
+    if (which == 0x3) { // both have been updated, output all 4 values
+      //       Serial.println("mSec,S Winter, S Upper,N Winter, N Upper");
+      Serial.print((0.001)*thisTime, 3);
+      Serial.print(",");
+      Serial.print(Winter_South_Door_Position);
+      Serial.print(",");
+      Serial.print(Upper_South_Door_Position);
+      Serial.print(",");
+      Serial.print(Winter_North_Door_Position);
+      Serial.print(",");
+      Serial.println(Upper_North_Door_Position);
+    }
+  }
+}
+#if !defined(DO_LOGGING)
 unsigned int LastThrust[3] = {0,0,0};
 unsigned int LastDir[3] = {0,0,0};
 unsigned int LastInst = 0;
@@ -239,6 +248,11 @@ void IncomingSYNC() {
     Serial.println(LastThrust[SOUTH_INSTANCE]);
   }
 
+
+  // Data collection shows:
+  // South Winter Position changes 2760 counts over 30.8s
+  // North Winter Position changes 1236 counts over 36.6s (under 20 degrees at least)
+
   // see if the thrusters are being asked to move, and change the winter hinge position if so
   if (LastDir[NORTH_INSTANCE] && LastThrust[NORTH_INSTANCE] > MIN_THRUST) {
     INT16S pos = Winter_North_Door_Position;
@@ -277,8 +291,9 @@ void IncomingSYNC() {
       CanOutBuffers[j].NextSendTime.SetTimer(j); // 1ms apart
     }
   }
+  DumpAnalog(0);
 }
-
+#endif
 
 void setup()
 {
@@ -299,11 +314,10 @@ void setup()
     Serial.println(" Init CAN BUS Shield again");
     delay(100);
   }
-  Serial.print("Setup complete for CAN baudrate of ");
-  Serial.println(CANBaudLookup[CurrentCANBaud].rate);
-  Serial.println();
+  Serial.println("CAN init complete");
 
   CanPollerInit();
+#if !defined(DO_LOGGING)
   // always set up CAN buffers, in case the input comes on later
   // These sections of Tx/Rx are opposite of the definitions in Merillat.ino
   // Data we want to collect from the bus
@@ -327,6 +341,13 @@ void setup()
 
   CanOutBuffers[0].NextSendTime.SetTimer(0); // send now, priming the pump
   OutputSetTimer = 40; // cause to always cycle
+  Serial.println("Compiled for simulation");
+#else
+  // we are just a logging application, but we want to capture all the Analog values, so it becomes possible to trace them
+  CanPollSetRx(SOUTHDOORANALOG_RX_COBID,sizeof(Inputs.SouthDoorAnalog_Rx),(INT8U*)&Inputs.SouthDoorAnalog_Rx,DumpAnalog);
+  CanPollSetRx(NORTHDOORANALOG_RX_COBID,sizeof(Inputs.NorthDoorAnalog_Rx),(INT8U*)&Inputs.NorthDoorAnalog_Rx,DumpAnalog);
+  Serial.println("Compiled for logging");
+#endif
 
   CanPollDisplay(3);
 
@@ -374,6 +395,11 @@ void loop()
       OutputSetTimer = INFINITE;
     }
   }
+  else if (serialRead == 't' || serialRead == 'T') { // Tracing of hinge data
+    Tracing = !Tracing;
+    if (Tracing)
+      Serial.println("mSec, S Winter, S Upper,N Winter, N Upper");
+  }
   else if (serialRead == 'S' || serialRead == 's') // SYNC transmit
   {
     SYNCsend();
@@ -405,47 +431,14 @@ void loop()
     Remote_IsRequestingOpen;
   }
 
-  else if(serialRead == 'B') // Baud rate request
-  {
-    int b = 0;
-    serialRead = Serial.read();
-    while (serialRead >= '0' && serialRead <= '9') {
-      b = b*10 + (serialRead - '0');
-      serialRead = Serial.read();
-    }
-    int nB = CurrentCANBaud;
-    for (int i=1; i<sizeof(CANBaudLookup)/sizeof(CANBaudLookup[0]); i++) {
-      if (CANBaudLookup[i].kBaud == b) {
-        nB = CANBaudLookup[i].CAN_Konstant;
-        break;
-      }
-    }
-    if (nB == CurrentCANBaud) {
-      Serial.print("Leaving CAN Baud rate unchanged at ");
-      Serial.println(CANBaudLookup[nB].rate);
-    }
-    else {
-      Serial.print("Changing CAN Baud rate to ");
-      Serial.println(CANBaudLookup[nB].rate);
-      CurrentCANBaud = nB;
-
-      while (CAN_OK != CAN.begin(CurrentCANBaud))              // init can bus
-      {
-        Serial.println("CAN BUS Shield init fail");
-        Serial.println(" Init CAN BUS Shield again");
-        delay(100);
-      }
-      Serial.println("OK!");
-    }
-  }
-
   if (cycle && SYNCTimer.IsTimeout()) {
     SYNCsend();
     SYNCTimer.IncrementTimer(100);
   }
 
 #ifdef DO_LOGGING
-  if (Head != Tail) {
+  // don't output this tracing if the Analog tracing is requested
+  if (!Tracing && Head != Tail) {
     // not caught up, print out the next message we have
     Tail = (Tail + 1) % NUM_BUFFS;
     if (Overflow) {

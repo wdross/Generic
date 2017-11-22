@@ -99,7 +99,7 @@ void CanPoller()
         // if it is, the buttonState is HIGH, so we want to do our simulation:
         if (//digitalRead(DOOR_SIMULATE_PIN) == LOW && // jumper/switch says to SIMULATE AND
             CanInBuffers[j].RxFunction) {             // there is a function that will emulate against this message
-          CanInBuffers[j].RxFunction(); // invoke function
+          CanInBuffers[j].RxFunction(j); // invoke function
         }
         break; // skip out of the loop
       }
