@@ -116,12 +116,17 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
   }
 
   if (Upper_North_Door_Position.IsClosed() &&
-      Upper_South_Door_Position.IsClosed() &&
+      Upper_South_Door_Position.IsClosed()
+#ifdef CLOSE_WINTER_DOORS
+                                            &&
       Winter_North_Door_Position.IsClosed() &&
       Winter_South_Door_Position.IsClosed() &&
       !Winter_Lock_Closed_IsUnlatched.Read() &&
-      Winter_Lock_Closed_IsLatched.Read()) { // Winter is locked
-
+      Winter_Lock_Closed_IsLatched.Read() // Winter is locked
+#else
+      // We don't want to move the Winter doors closed, so don't require them to be closed to ask for an Open
+#endif
+                                         ) {
     InternalEvent(eST_IsClosed);
   }
   //
@@ -180,8 +185,14 @@ void DoorStates::ST_IsOpen()
     if (Upper_South_Door_Position.IsClosed() && Upper_North_Door_Position.IsClosed()) {
       Upper_North_Door.Write(lr_No_Request);
       Upper_South_Door.Write(lr_No_Request);
+#ifdef CLOSE_WINTER_DOORS
       OpenTimer.SetTimer(ACTUATOR_TIME);
       InternalEvent(eST_UnLockOpenWinterDoors);
+#else
+      // we don't want to close the Winter doors, so just say we are done
+      InternalEvent(eST_IsClosed);
+      OpenTimer.SetTimer(INFINITE);
+#endif
     }
     else {
       OpenTimer.SetTimer(UPPER_DOORS_CLOSE_TIME); // Big doors take about a minute
@@ -413,8 +424,14 @@ void DoorStates::ST_CloseUpperDoors()
   if (SouthClose && NorthClose) {
     Upper_North_Door.Write(lr_No_Request);
     Upper_South_Door.Write(lr_No_Request);
+#ifdef CLOSE_WINTER_DOORS
     OpenTimer.SetTimer(ACTUATOR_TIME);
     InternalEvent(eST_UnLockOpenWinterDoors);
+#else
+    // we don't want to close the doors, just say we are done
+    InternalEvent(eST_IsClosed);
+    OpenTimer.SetTimer(INFINITE);
+#endif
   }
   else if (OpenTimer.IsTimeout()) {
     // all outputs are cleared within ST_Error

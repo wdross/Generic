@@ -6,6 +6,11 @@
 #include "StateMachine.h"
 #include "BitObject.h"
 
+#undef CLOSE_WINTER_DOORS // new request to just move upper doors
+// This undef will still check that the Winter doors are actually locked open,
+// but won't move them closed when the remote close request comes in.
+// When everything is working as intended, this will be turned on as #define
+
 #define ACTUATOR_TIME 12000
 #define UPPER_DOORS_CLOSE_TIME 90000
 #define UPPER_DOORS_OPEN_TIME 90000
