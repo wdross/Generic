@@ -1,4 +1,5 @@
   STATE_ITEM(ST_AwaitFullyOpenOrFullyClosed)
+  STATE_ITEM(ST_SetUpHingePositions)
 
   STATE_ITEM(ST_IsOpen)
   STATE_ITEM(ST_CloseUpperDoors)

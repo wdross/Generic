@@ -16,7 +16,10 @@ DoorStates::DoorStates() :
   ErrorTimer.SetTimer(INFINITE);
   MonitorInputs = 0; // none
   RequestStorage = 0;
-  InternalEvent(eST_AwaitFullyOpenOrFullyClosed);
+  if (myEE.Data.Doors[0].Valid && myEE.Data.Doors[1].Valid && myEE.Data.Doors[2].Valid && myEE.Data.Doors[3].Valid)
+    InternalEvent(eST_AwaitFullyOpenOrFullyClosed);
+  else
+    InternalEvent(eST_SetUpHingePositions);
 
   // thruster one-shot init
   memset(&Outputs.Thrusters[SOUTH_INSTANCE],0,sizeof(Outputs.Thrusters[SOUTH_INSTANCE])); // all zeros
@@ -70,6 +73,20 @@ INT8U DoorStates::AnyMovementRequests()
          Touch_IsRequestingClose->Read() << 1 |
          Remote_IsRequestingOpen.Read() << 2 |
          Touch_IsRequestingOpen->Read() << 3);
+}
+
+
+//!
+//! Default initial state upon boot if the EEPROM isn't setup
+//!
+void DoorStates::ST_SetUpHingePositions()
+{
+  ClearAllOutputs();
+  OpenTimer.SetTimer(INFINITE);
+  ErrorTimer.SetTimer(INFINITE);
+  // Doesn't allow any movement, just sit there until stuff is valid by using "Hinge Settings" screen
+  if (myEE.Data.Doors[0].Valid && myEE.Data.Doors[1].Valid && myEE.Data.Doors[2].Valid && myEE.Data.Doors[3].Valid)
+    InternalEvent(eST_AwaitFullyOpenOrFullyClosed);
 }
 
 
@@ -550,11 +567,12 @@ void DoorStates::ST_Error()
   if (ErrorTimer.IsTiming())
     return; // hasn't timed out yet, allow seeing previous state
 
-  // monitor for inputs to indicate the doors are either fully open or fully closed,
-  // from which state we can begin again the open/close processing.
-  // if inputs are correct, we'll roll into Open or Closed
-//  ST_AwaitFullyOpenOrFullyClosed();
-
+  // When recovering from an error, we'll sit in this state until all of our
+  // movement request inputs (and the minimum 5 second error timer above)
+  // have stopped.  Once there have been no Close or Open commands present,
+  // we can start monitoring for them and act on them by simply "strumming"
+  // the ST_IsOpen() and ST_IsClosed() states, which look for their associated
+  // movement request and can pick up in the middle of either movement.
   if (!AllMovementRequestsCleared &&
        AnyMovementRequests())
     return;
