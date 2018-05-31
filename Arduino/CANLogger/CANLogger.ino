@@ -105,31 +105,34 @@ void IncomingSYNC() {
   // monitor for edges (start moving actuator, start timing, 10s later, show correct limit switch changed state)
 
   // Monitor and respond to upper door movement request
+  // May 31, 2018 switched polarity of Upper North, as notes say open is a larger value than closed
 #define UPPER_DOOR_MOVEMENT_RATE 125
   static bool UpperSouthLatch = false;
   if (Upper_South_Door_CLOSE) {
-    Upper_South_Door_Position += UPPER_DOOR_MOVEMENT_RATE;
+    Upper_South_Door_Position -= UPPER_DOOR_MOVEMENT_RATE;
     if (!UpperSouthLatch)
       Serial.println("Upper South Closing");
     UpperSouthLatch = true;
   }
   else if (Upper_South_Door_OPEN) {
-    Upper_South_Door_Position -= UPPER_DOOR_MOVEMENT_RATE;
+    Upper_South_Door_Position += UPPER_DOOR_MOVEMENT_RATE;
     if (!UpperSouthLatch)
       Serial.println("Upper South Opening");
     UpperSouthLatch = true;
   }
   else
     UpperSouthLatch = false;
+
+  // May 31, 2018 switched polarity of Upper North, as notes say open is a smaller value than closed
   static bool UpperNorthLatch = false;
   if (Upper_North_Door_CLOSE) {
-    Upper_North_Door_Position -= 3*UPPER_DOOR_MOVEMENT_RATE/2;
+    Upper_North_Door_Position += 3*UPPER_DOOR_MOVEMENT_RATE/2;
     if (!UpperNorthLatch)
       Serial.println("Upper North Closing");
     UpperNorthLatch = true;
   }
   else if (Upper_North_Door_OPEN) {
-    Upper_North_Door_Position += 4*UPPER_DOOR_MOVEMENT_RATE/5;
+    Upper_North_Door_Position -= 4*UPPER_DOOR_MOVEMENT_RATE/5;
     if (!UpperNorthLatch)
       Serial.println("Upper North Opening");
     UpperNorthLatch = true;
