@@ -12,8 +12,8 @@
 // When everything is working as intended, this will be turned on as #define
 
 #define ACTUATOR_TIME 12000
-#define UPPER_DOORS_CLOSE_TIME 90000
-#define UPPER_DOORS_OPEN_TIME 90000
+#define UPPER_DOORS_CLOSE_TIME 70000
+#define UPPER_DOORS_OPEN_TIME 70000
 #define CLOSE_WINTER_TIME (3*60LL)*1000LL
 #define OPEN_WINTER_TIME (3*60LL)*1000LL
 #define AIRBAG_TIME 11000

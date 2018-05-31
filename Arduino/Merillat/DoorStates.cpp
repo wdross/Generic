@@ -105,13 +105,19 @@ void DoorStates::ST_AwaitFullyOpenOrFullyClosed()
     return;
 
   if (Upper_North_Door_Position.IsOpen() &&  // Upper North Open
-      Upper_South_Door_Position.IsOpen() &&  // Upper South Open
+      Upper_South_Door_Position.IsOpen()     // Upper South Open
+#ifdef CLOSE_WINTER_DOORS
+                                         &&
       Winter_North_Door_Position.IsOpen() &&
       Winter_South_Door_Position.IsOpen() &&
       South_Winter_Lock_Open_IsLatched.Read() &&
       !South_Winter_Lock_Open_IsUnlatched.Read() && // South Winter Locked open
       North_Winter_Lock_Open_IsLatched.Read() &&
-      !North_Winter_Lock_Open_IsUnlatched.Read()) { // North Winter Locked open
+      !North_Winter_Lock_Open_IsUnlatched.Read()    // North Winter Locked open
+#else
+      // we don't want to move the winter doors, don't care where they are
+#endif
+                                             ) {
     InternalEvent(eST_IsOpen);
   }
 
@@ -221,19 +227,25 @@ if (Remote_IsRequestingOpen.Read() ||
     ErrorTimer.SetTimer(INFINITE);
     // switch to an OPEN state machine
 
+// We don't want to check if the winter doors are actually open
+// We don't trust the I/O to indicate they are open when they really are.
+#ifdef CLOSE_WINTER_DOORS
     // let's check -- if the winter doors are all the way open already,
     // skip to opening the Upper doors.  Allows restarting motion
     if (Winter_South_Door_Position.Open90Percent() &&
         South_Winter_Lock_Open_IsLatched.Read() &&
         Winter_North_Door_Position.Open90Percent() &&
         North_Winter_Lock_Open_IsLatched.Read()) {
+#endif
       InternalEvent(eST_OpenUpperDoors);
       OpenTimer.SetTimer(UPPER_DOORS_OPEN_TIME);
+#ifdef CLOSE_WINTER_DOORS
     }
     else {
       OpenTimer.SetTimer(ACTUATOR_TIME); // Actuator takes 10s for full transition
       InternalEvent(eST_Unlock);
     }
+#endif
   }
 }
 

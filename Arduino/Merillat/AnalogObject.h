@@ -6,7 +6,7 @@
 extern ITDB02 myGLCD;
 
 #define ROC_WINTER 7000 // ms to recompute Rate Of Change during Open/Close cycle
-#define ROC_CLOSING 7000 // ms
+#define ROC_CLOSING 1500 // ms
 #define CLOSED_TOLERANCE 45 // there is about 91 counts in a degree
 #define OPENED_TOLERANCE CLOSED_TOLERANCE
 
