@@ -176,11 +176,28 @@ inline bool AnalogObject::IsWinterSlow() {
   return(LastMovement < SLOW_TOLERANCE);
 }
 
+#define OVER_CLOSED_AMOUNT 250 // about 3 degrees
+// By adding the check for "too closed", the emulator will work, and it adds a
+// safety if we see the door is going too far, must be out of calibration.
 inline bool AnalogObject::IsClosingSlow() {
   // once we trace manual movement data, we'll have a pretty good idea what
   // this should look like.
+  int CurrentPosition = *Address;
+
+  if (_DI->Valid) {
+    if (_DI->Opened > _DI->Closed) {
+      // increasing numbers for opening (Opened > Closed)
+      if (CurrentPosition <= _DI->Closed - OVER_CLOSED_AMOUNT)
+        return(true); // it is 'over closed'
+    }
+    else {
+      // decreasing numbers for opening
+      if (CurrentPosition >= _DI->Closed + OVER_CLOSED_AMOUNT)
+        return(true); // it is 'over closed'
+    }
+  }
+
   if (RateOfChangeTimer.IsTimeout()) {
-    int CurrentPosition = *Address;
     LastMovement = abs(CurrentPosition - LastPosition);
     LastPosition = CurrentPosition;
     RateOfChangeTimer.SetTimer(ROC_CLOSING);
