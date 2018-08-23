@@ -1,0 +1,12 @@
+<resources>
+
+    <string name="action_settings">Settings</string>
+    <string name="computeButtonPressed">(Compute button pressed.)</string>
+    <string name="resetButtonDescription">Clear all Button</string>
+    <string name="clearButtonDescription">Clear Button</string>
+    <string name="distanceText">Distance</string>
+    <string name="initialVelocityText">Initial Velocity</string>
+    <string name="finalVelocityText">Final Velocity</string>
+    <string name="accelerationText">Acceleration</string>
+    <string name="timeText">Time</string>
+</resources>
