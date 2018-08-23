@@ -1,4 +1,4 @@
-package net.boxathome.waynes.mysvuat.main;
+package net.boxathome.waynes.mysuvat.main;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;
@@ -21,6 +21,6 @@ public class ExampleInstrumentedTest {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getTargetContext();
 
-        assertEquals("net.boxathome.waynes.mysvuat.main.test", appContext.getPackageName());
+        assertEquals("net.boxathome.waynes.mysuvat.main.test", appContext.getPackageName());
     }
 }

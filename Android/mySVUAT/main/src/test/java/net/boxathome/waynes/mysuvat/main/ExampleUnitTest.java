@@ -1,4 +1,4 @@
-package net.boxathome.waynes.mysvuat.main;
+package net.boxathome.waynes.mysuvat.main;
 
 import org.junit.Test;
 
