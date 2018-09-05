@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>SUVAT solution table</title>
+  <script type="text/javascript" async
+  src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-MML-AM_CHTML" async>
+</script>
+
+  <style>
+	body {
+		margin: 2px;
+		background-color: #000; /* Provides black background lines around table */
+	}
+	.wrapper {
+		/* describes the 6 columns of our table */
+		display: grid;
+		grid-gap: 1px; /* 1 pixel thick black lines between cells */
+		grid-template-columns: 5% repeat(5, 19%);
+		background-color: #000; /* Provides black background lines */
+	}
+	.head {
+		/* Header, spans all 5 of the solution columns */
+		grid-column-start: 2;
+		grid-column-end: span 5;
+		background-color: blue;
+		color: #fff; /* White font/text */
+		padding: 5px;
+		font-size: 100%;
+		font-weight: bold;
+		text-align: center;
+	}
+	.foot {
+	  /* Footer, spans all 5 of the solution columns
+	     Space to put meanings of the colors, very much like .head
+		 with the color definitions of .box */
+		grid-column-start: 2;
+		grid-column-end: span 5;
+		background-color: #fff; /* White background */
+		color: #000; /* Black font/text */
+		padding: 8px;
+		font-size: 80%;
+	}
+	.preface {
+		/* placed as a vertical column in front of all the solutions */
+		grid-row-start: 2;
+		grid-row-end: span 5;
+		background-color: blue;
+		color: #fff; /* White font/text */
+		padding: 5px;
+		font-size: 100%;
+		font-weight: bold;
+		text-align: center;
+		vertical-align:middle; /* Not working as yet */
+	}
+	.box {
+		/* We'll put all our solutions within one of these */
+		background-color: #fff; /* White background */
+		color: #000; /* Black font/text */
+		padding: 1px;
+		font-size: 80%;
+		text-align: center;
+		vertical-align:middle; /* Not working as yet */
+	}
+	.solve {
+		/* This is the single-letter-in-a-box that we are solving for */
+		background-color: lightblue;
+		color: #000; /* Black font/text */
+		border-radius: 0px;
+		padding: 1px;
+		font-size: 200%;
+		font-weight: bold;
+		
+		text-align: center;
+		vertical-align:middle; /* Not working as yet */
+	}
+  </style>
+
+
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="box"></div> <!-- empty upper left box -->
+  <div class="head">MISSING PARAMETER</div>
+  
+  <!-- Runs vertically down the left side of the table.
+       Couldn't figure out how to properly rotate this! -->
+  <div class="preface">S<br>O<br>L<br>V<br>E<br><br>F<br>O<br>R</div>
+  
+  <!-- 1st row of formulas, solving for S -->
+  <div class="solve">s</div>
+  <div class="box" style="background-color:PeachPuff;">
+    <!-- Form #5 -->
+    $$s = {vt - {1 \over 2} at^2}$$
+  </div>
+  <div class="box" style="background-color:PeachPuff;">
+    <!-- Form #2 -->
+    $$s = {ut + {1 \over 2} at^2}$$
+  </div>
+  <div class="box" style="background-color:PeachPuff;">
+    <!-- Form #3 -->
+    $$s = {(v + u) t \over 2}$$
+  </div>
+  <div class="box">
+    <!-- Solve for s in Form #4 -->
+    $$s = {(v^2 - u^2) \over 2a}$$
+  </div>
+  
+  <!-- 2nd row, solving for U -->
+  <div class="box">
+    <!-- Solve for u in Form #1 -->
+    $$u = v - at$$
+  </div>
+  <div class="solve">u</div>
+  <div class="box">
+    <!-- Solve for u in Form #2 -->
+    $$u = {s - {at^2 \over 2} \over t}$$
+  </div>
+  <div class="box">
+    <!-- Solve for u in Form #3 -->
+    $$u = {2s \over t} - v$$
+  </div>
+  <div class="box" style="background-color:Yellow;">
+    <!-- Solve for u in Form #4 -->
+	<!-- TODO: see if +/- are actually both valid solutions... -->
+    $$u = \pm \sqrt{v^2-2as}$$
+  </div>
+  
+  <!-- 3rd row, solving for V -->
+  <div class="box" style="background-color:PeachPuff;">
+    <!-- Form #1 -->
+    $$v = at + u$$
+  </div>
+  <div class="box">
+    <!-- Solve for v in Form #5 -->
+    $$v = {s \over t} + {at \over 2}$$
+  </div>
+  <div class="solve">v</div>
+  <div class="box">
+    <!-- Solve for v in Form #3 -->
+    $$v = {2s \over t} - u$$
+  </div>
+  <div class="box" style="background-color:PeachPuff;">
+    <!-- Form #4 -->
+    $$v = \sqrt{u^2+2as}$$
+  </div>
+  
+  <!-- 4th row, solving for A -->
+  <div class="box">
+    <!-- Solve for a in Form #1 -->
+    $$a = {v-u \over t}$$
+  </div>
+  <div class="box">
+    <!-- Solve for a in Form #5 -->
+    $$a = {2 ( vt-s) \over t^2}$$
+  </div>
+  <div class="box">
+    <!-- Solve for a in Form #3 -->
+    $$a = {2 ( s - ut) \over t^2}$$
+  </div>
+  <div class="solve">a</div>
+  <div class="box">
+    <!-- Solve for a in Form #4 -->
+    $$a = {v^2-u^2 \over 2s}$$
+  </div>
+  
+  <!-- 5th row, solving for T -->
+  <div class="box">
+    <!-- Solve for t in Form #1 -->
+    $$t = {v - u \over a}$$
+  </div>
+  <div class="box" style="background-color:Yellow;">
+    <!-- Solve for t in Form #1 after substituting our answer for u solved in form #4 -->
+	<!-- TODO: see if +/- are actually both valid solutions... -->
+    $$t = {v \pm \sqrt{v^2-2as} \over a}$$
+  </div>
+  <div class="box" style="background-color:Yellow;">
+    <!-- Solve for t in Form #1 after substituting our answer for v solved in form #4 -->
+	<!-- TODO: see if +/- are actually both valid solutions... -->
+    $$t = {\pm \sqrt{u^2+2as} - u \over a}$$
+  </div>
+  <div class="box">
+    <!-- Solve for t in Form #3 -->
+    $$t = {2s \over (v+u)}$$
+  </div>
+  <div class="solve">t</div>
+
+  <!-- Explanation footers -->
+  <div class="box"></div> <!-- empty left box -->
+  <div class="foot" style="background-color:PeachPuff;">
+  <a href="https://en.wikipedia.org/wiki/Equations_of_motion#Constant_translational_acceleration_in_a_straight_line">
+  Formula in this PeachPuff color are one of the base 5 formulas</a>
+  </div>
+
+  <div class="box"></div> <!-- empty left box -->
+  <div class="foot" style="background-color:Yellow;">
+  Formula in this Yellow color are derived from a combination of two base formula
+  </div>
+
+</div>
+
+
+</body>
+</html>

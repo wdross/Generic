@@ -69,13 +69,14 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.666" />
 
+    <!-- This is the only button without numberSigned, as we want positive time -->
     <EditText
         android:id="@+id/TText"
         android:layout_width="130dp"
         android:layout_height="wrap_content"
         android:ems="10"
         android:hint="@string/timeText"
-        android:inputType="numberSigned|numberDecimal"
+        android:inputType="numberDecimal"
         android:nextFocusDown="@+id/computeButton"
         android:textAlignment="center"
         app:layout_constraintBottom_toBottomOf="parent"
