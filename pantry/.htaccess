@@ -1,4 +1,0 @@
-AuthType Basic
-AuthName "restricted area"
-AuthUserFile /var/www/hiddenpantry/.htpasswd
-require valid-user
