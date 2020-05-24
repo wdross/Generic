@@ -9,6 +9,7 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
+#include <CFwTimer.h>
 #include <../Credentials.h>
 
 #define HOST "thermostat"     // what name to show via DNS
@@ -17,36 +18,52 @@
 
 ESP8266WebServer server(80);
 
-const int HEAT_RELAY = 13;
+const int HEAT_RELAY_OUTPUT = 13;
+const bool HEAT_OUTPUT_STATE_FOR_ON = false; // when we pull this output low the relay is activated
 bool last_heat_state = false;
 
+#define ACTIVITY_LED 2 // blue LED near the antenna end of the Feather
+bool lastLED = false;
+CFwTimer Tick(500);
 
-/* Style */
-String style =
-"<style>#file-input,input{width:100%;height:44px;border-radius:4px;margin:10px auto;font-size:15px}"
-"input{background:#f1f1f1;border:0;padding:0 15px}body{background:#3498db;font-family:sans-serif;font-size:14px;color:#777}"
-"#file-input{padding:0;border:1px solid #ddd;line-height:44px;text-align:left;display:block;cursor:pointer}"
-"#bar,#prgbar{background-color:#f1f1f1;border-radius:10px}#bar{background-color:#3498db;width:0%;height:10px}"
-"form{background:#fff;max-width:258px;margin:75px auto;padding:30px;border-radius:5px;text-align:center}"
-".btn{background:#3498db;color:#fff;cursor:pointer}</style>";
+bool loggedIn = false; // has someone logged in and provided the correct ID/pw?
+CFwTimer LoggedInTimer(15*60*1000L); // how long without activity before we kick them out?
+
+#define GRAPH_WIDTH 400 // pixel width of the history graph we draw
+#define RED String("d00")
+#define GREEN String("0d0")
+String getStyle(int FormMaxWidth=258) // can override default
+{
+  String out = "<style>"
+         "#setinp{width:15%;height:44px;border-radius:4px;margin:10px auto;font-size:15px}"
+         "#file-input,input{width:100%;height:44px;border-radius:4px;margin:10px auto;font-size:15px}"
+         "#setinp,input{background:#f1f1f1;border:0;padding:0 15px}"
+         "#call{background:#";
+  if (last_heat_state)
+    out += RED;
+  else
+    out += GREEN;
+  out += ";color:#000}"
+         "body{background:#3498db;font-family:sans-serif;font-size:14px;color:#777}"
+         "#file-input{padding:0;border:1px solid #ddd;line-height:44px;text-align:left;display:block;cursor:pointer}"
+         "#bar,#prgbar{background-color:#f1f1f1;border-radius:10px}#bar{background-color:#3498db;width:0%;height:10px}"
+         "form{background:#fff;max-width:";
+  out += String(FormMaxWidth);
+  out += "px;margin:75px auto;padding:30px;border-radius:5px;text-align:center}"
+         ".btn{background:#3498db;color:#fff;cursor:pointer}"
+         "</style>";
+  return out;
+}
 
 /* Login page */
 String loginIndex =
-"<form name=loginForm>"
+"<form name=loginForm ACTION='serverIndex'>"
 "<h1>Ross " HOST
 " Login</h1>"
 "<p>Version " VERSION
 "<input name=userid placeholder='User ID'> "
 "<input name=pwd placeholder=Password type=Password> "
-"<input type=submit onclick=check(this.form) class=btn value=Login></form>"
-"<script>"
-"function check(form) {"
-"if(form.userid.value=='admin' && form.pwd.value=='admin')"
-"{window.open('/serverIndex')}"
-"else"
-"{alert('Error Password or Username')}"
-"}"
-"</script>" + style;
+"<input type=submit class=btn value=Login></form>" + getStyle();
 
 /* Server Index Page */
 String serverIndex =
@@ -91,19 +108,19 @@ String serverIndex =
 "}"
 "});"
 "});"
-"</script>" + style;
+"</script>" + getStyle();
+
 
 void drawGraph() {
   String out = "";
   char temp[100];
-  out += "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"400\" height=\"150\">\n";
-  out += "Some plain text here\n";
+  out += "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"" + String(GRAPH_WIDTH) + "\" height=\"150\">\n";
   out += "<rect width=\"400\" height=\"150\" fill=\"rgb(250, 230, 210)\" stroke-width=\"1\" stroke=\"rgb(0, 0, 0)\" />\n";
   out += "<g stroke=\"black\">\n";
   int y = rand() % 130;
   for (int x = 10; x < 390; x+= 10) {
     int y2 = rand() % 130;
-    sprintf(temp, "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"2\" />\n", x, 140 - y, x + 10, 140 - y2);
+    sprintf(temp, "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"1\" />\n", x, 140 - y, x + 10, 140 - y2);
     out += temp;
     y = y2;
   }
@@ -128,9 +145,13 @@ void handleNotFound(){
 }
 
 void setup(void){
-  pinMode(HEAT_RELAY, OUTPUT);
+  pinMode(HEAT_RELAY_OUTPUT, OUTPUT);
   last_heat_state = false; // always start "off"
-  digitalWrite(HEAT_RELAY, last_heat_state);
+  digitalWrite(HEAT_RELAY_OUTPUT, last_heat_state == HEAT_OUTPUT_STATE_FOR_ON);
+
+  pinMode(ACTIVITY_LED,OUTPUT);
+  digitalWrite(ACTIVITY_LED,lastLED);
+
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
 
@@ -159,13 +180,30 @@ void setup(void){
     server.send(200, "text/html", loginIndex);
   });
   server.on("/serverIndex", HTTP_GET, []() {
+    String usr, pw;
     server.sendHeader("Connection", "close");
-    server.send(200, "text/html", serverIndex);
+
+    for (uint8_t i=0; i<server.args(); i++){
+      if (server.argName(i) == "userid")
+        usr = server.arg(i);
+      else if (server.argName(i) == "pwd")
+        pw = server.arg(i);
+    }
+    if (usr == USERID && pw == PASSWORD) {
+      loggedIn = true;
+      LoggedInTimer.ResetTimer();
+      server.send(200, "text/html", serverIndex);
+    }
+    else
+      server.send(200, "text/html", loginIndex);
   });
   /*handling uploading firmware file */
   server.on("/update", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
-    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    if (loggedIn)
+      server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    else
+      server.send(200, "text/html", loginIndex);
     ESP.restart();
   }, []() {
     HTTPUpload& upload = server.upload();
@@ -217,24 +255,25 @@ void setup(void){
 
 void handleTemp() {
   last_heat_state = !last_heat_state;
-  digitalWrite(HEAT_RELAY, last_heat_state);
+  digitalWrite(HEAT_RELAY_OUTPUT, last_heat_state == HEAT_OUTPUT_STATE_FOR_ON);
 
   char temp[20];
-  String out = "<HTML><FORM NAME=\"form\" METHOD=\"POST\" ACTION=\"changetemperature\">\n";
+  String out = "<HTML><FORM NAME='form' METHOD='POST' ACTION='changetemperature'>\n";
   out += "<h1>Awesome thermostat!</h1>\n";
   out += "Current temperature is:\n";
   sprintf(temp, "%d&deg F\n",65 + (rand() % 13));
   out += temp;
+  out += "<p id='call'><br>";
   if (last_heat_state)
-    out += "<br>Currently calling for heat";
+    out += "Currently calling for heat";
   else
-    out += "<br>NOT currently asking for heat";
-  out += "<br>Setpoint: <INPUT TYPE=\"TEXT\" NAME=\"setpoint\" SIZE=\"2\" value=\"72\"> F<br>\n";
-  out += "<INPUT TYPE=\"SUBMIT\" NAME=\"submit\" VALUE=\"Change setpoint\">\n";
-  out += "<br><IMG src=\"test.svg\">";
+    out += "NOT currently asking for heat";
+  out += "<br>&nbsp</p>\nSetpoint: <INPUT id='setinp' TYPE='TEXT' NAME='setpoint' value='72'> F<br>\n";
+  out += "<INPUT TYPE='SUBMIT' NAME='submit' VALUE='Change setpoint'>\n";
+  out += "<br><IMG src='test.svg'>";
   out += "<br>Version " VERSION;
-  out += "<br><a href=\"firmwareupdate\">Upload new firmware";
-  out += "</FORM></HTML>\n";
+  out += "<br><a href='firmwareupdate'>Upload new firmware";
+  out += "</FORM></HTML>\n" + getStyle(GRAPH_WIDTH);
   server.send(200, "text/html", out);
 }
 
@@ -245,5 +284,18 @@ void handleTemp() {
 
 void loop(void){
   server.handleClient();
+
   ArduinoOTA.handle();
+
+  if (Tick.IsTimeout()) {
+    lastLED = !lastLED;
+    digitalWrite(ACTIVITY_LED,lastLED);
+    Tick.IncrementTimer(loggedIn?250:500); // blink faster when someone has logged in
+  }
+
+  if (LoggedInTimer.IsTimeout()) {
+    // enough time has elapsed without action that we revert to needing a new sign-in
+    loggedIn = false;
+    LoggedInTimer.ResetTimer(); // will cause this to run again in the defined period, but prevents the 12.4 day timer-wrap problem
+  }
 }
