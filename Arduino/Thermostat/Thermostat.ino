@@ -4,12 +4,24 @@
 
 // Relies on the ESP8266 "Built-In" package for Web based updating and OTA updating
 
+// Items yet to be done in this project:
+// - Correct the HEAT_RELAY_OUTPUT to drive the new feather relay output
+// - Collect temperature via TMP36 analog input
+// - Determine a temperature update rate
+// - Hysteresis settings (over/under)
+// - Save set points/configuration to EEPROM
+//   o Library: https://github.com/esp8266/Arduino/tree/master/libraries/EEPROM
+// - Introduce a "Fan on" mode (with scheduling?!) w/other feather relay output
+// - Temperature history to fill out the placeholder graph we display
+//   o Add a second line for set point (it changes over time too based on schedule)
+
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <CFwTimer.h>
+#include <NTPClient.h> // get us internet time
 #include <../Credentials.h>
 
 #define HOST "thermostat"     // what name to show via DNS
@@ -28,6 +40,11 @@ CFwTimer Tick(500);
 
 bool loggedIn = false; // has someone logged in and provided the correct ID/pw?
 CFwTimer LoggedInTimer(15*60*1000L); // how long without activity before we kick them out?
+
+// Variables required for NTPClient (Network Time Protocol)
+WiFiUDP ntpUDP;
+#define TIME_OFFSET -4*3600L // EDT is "-4"; EST is "-5": can we figure out how to automatically switch between those times?!?!
+NTPClient timeClient(ntpUDP);
 
 #define GRAPH_WIDTH 400 // pixel width of the history graph we draw
 #define RED String("d00")
@@ -251,7 +268,14 @@ void setup(void){
   ArduinoOTA.onError([](ota_error_t error) { ESP.restart(); }); // just reboot ourselves upon failed update
   ArduinoOTA.begin();
   Serial.println("ArduinoOTA server started");
+
+  timeClient.begin();
+  timeClient.setUpdateInterval(3600L*24); // just sync 1 time per day
+  timeClient.setTimeOffset(TIME_OFFSET); // And, need to figure out how to present this on the Web page as a changable item
+  Serial.println("NTPClient started");
 }
+
+String DOW[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
 
 void handleTemp() {
   last_heat_state = !last_heat_state;
@@ -271,6 +295,7 @@ void handleTemp() {
   out += "<br>&nbsp</p>\nSetpoint: <INPUT id='setinp' TYPE='TEXT' NAME='setpoint' value='72'> F<br>\n";
   out += "<INPUT TYPE='SUBMIT' NAME='submit' VALUE='Change setpoint'>\n";
   out += "<br><IMG src='test.svg'>";
+  out += "<br>" + DOW[timeClient.getDay()] + " " + timeClient.getFormattedTime();
   out += "<br>Version " VERSION;
   out += "<br><a href='firmwareupdate'>Upload new firmware";
   out += "</FORM></HTML>\n" + getStyle(GRAPH_WIDTH);
@@ -286,6 +311,8 @@ void loop(void){
   server.handleClient();
 
   ArduinoOTA.handle();
+
+  timeClient.update(); // it will (1 time per day) go check with the time server for the time, preventing clock walk
 
   if (Tick.IsTimeout()) {
     lastLED = !lastLED;
