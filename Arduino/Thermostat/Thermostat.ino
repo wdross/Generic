@@ -2,7 +2,7 @@
 // Tools->Board: Adafruit HUZZAH ESP8266
 //      ->Flash Size: 4M (3M SPIFFS)
 
-// Relies on the ESP8266 "Built-In" package for Web based updating and OTA updating
+// Relies on the ESP8266 "Built-In" package for Web based updating and HTTPUpload updating
 
 // Items yet to be done in this project:
 // - Correct the HEAT_RELAY_OUTPUT to drive the new feather relay output
@@ -19,7 +19,6 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
-#include <ArduinoOTA.h>
 #include <CFwTimer.h>
 #include <NTPClient.h> // get us internet time
 #include <../Credentials.h>
@@ -251,26 +250,8 @@ void setup(void){
   server.begin();
   Serial.println("HTTP server started");
 
-  ArduinoOTA.setHostname(HOST);
-//  ArduinoOTA.onStart([]() { // switch off all the PWMs during upgrade
-//                        for(int i=0; i<N_DIMMERS;i++)
-//                          analogWrite(dimmer_pin[i], 0);
-//                          analogWrite(led_pin,0);
-//                    });
-//
-//  ArduinoOTA.onEnd([]() { // do a fancy thing with our board led at end
-//                          for (int i=0;i<30;i++)
-//                          {
-//                            analogWrite(led_pin,(i*100) % 1001);
-//                            delay(50);
-//                          }
-//                        });
-  ArduinoOTA.onError([](ota_error_t error) { ESP.restart(); }); // just reboot ourselves upon failed update
-  ArduinoOTA.begin();
-  Serial.println("ArduinoOTA server started");
-
   timeClient.begin();
-  timeClient.setUpdateInterval(3600L*24); // just sync 1 time per day
+  timeClient.setUpdateInterval(24*3600L*1000); // just sync 1 time per day (in ms)
   timeClient.setTimeOffset(TIME_OFFSET); // And, need to figure out how to present this on the Web page as a changable item
   Serial.println("NTPClient started");
 }
@@ -296,6 +277,7 @@ void handleTemp() {
   out += "<INPUT TYPE='SUBMIT' NAME='submit' VALUE='Change setpoint'>\n";
   out += "<br><IMG src='test.svg'>";
   out += "<br>" + DOW[timeClient.getDay()] + " " + timeClient.getFormattedTime();
+  out += "<br>" + timeClient.TimeJump;
   out += "<br>Version " VERSION;
   out += "<br><a href='firmwareupdate'>Upload new firmware";
   out += "</FORM></HTML>\n" + getStyle(GRAPH_WIDTH);
@@ -304,13 +286,9 @@ void handleTemp() {
 
 
 // ESPhttpUpdate.updateSpiffs() is a call to "go see" if an updated binary is available for us to download
-// ArduinoOTA.* sets up a server which can "push" updates to us (with authorization checks)
-//   needs a call to ArduinoOTA.handle() in the loop() routine
 
 void loop(void){
   server.handleClient();
-
-  ArduinoOTA.handle();
 
   timeClient.update(); // it will (1 time per day) go check with the time server for the time, preventing clock walk
 
