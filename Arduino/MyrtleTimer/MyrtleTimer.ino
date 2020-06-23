@@ -2,7 +2,7 @@
 // Tools->Board: Adafruit HUZZAH ESP8266
 //      ->Flash Size: 4M (3M SPIFFS)
 
-// Relies on the ESP8266 "Built-In" package for Web based updating and HTTPUpload updating
+// Relies on the ESP8266 "Built-In" package for HTTPUpload updating
 
 // Items yet to be done in this project:
 // - 2nd relay for light
@@ -10,6 +10,7 @@
 //   - EDT/EST behaviors; EEPROM
 // - web page defines default "off" time when asked to "nap"
 //   - store that value in EEPROM
+// - get it to respond/work with Alexa
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
@@ -20,7 +21,7 @@
 #include <CFwDebouncedDigitalInput.h> // local pushbutton to turn off pump
 #include <../Credentials.h>
 
-#define HOST "myrtle"     // what name to show via DNS
+#define HOST "myrtle"     // what name to show via DNS?
 
 #define VERSION "0.55prototype"
 
@@ -30,7 +31,12 @@ const int PUMP_RELAY_OUTPUT = 12; // #0 is the RED LED on the breakout board
 const bool PUMP_OUTPUT_STATE_FOR_ON = false; // when we pull this output low the relay is activated
 bool last_pump_state = true; // pump water when turned on!
 int QuietTimeMS = 5000; // just start with 5 seconds
-CFwTimer QuietTimer; // 
+CFwTimer QuietTimer; // how much time is left quiet before we turn the pump back on
+
+const int LIGHT_RELAY_OUTPUT = 14;
+const bool LIGHT_OUTPUT_STATE_FOR_ON = false;
+bool last_light_state = false; // leave off until we get the time and know which way it should be
+CFwTimer ToggleLightTimer;
 
 #define ACTIVITY_LED 2 // blue LED near the antenna end of the Feather
 bool lastLED = false;
@@ -148,6 +154,11 @@ void setup(void){
   last_pump_state = false; // always start "off"
   digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
 
+  pinMode(LIGHT_RELAY_OUTPUT, OUTPUT);
+  last_light_state = true; // always start with light on
+  digitalWrite(LIGHT_RELAY_OUTPUT, last_light_state == LIGHT_OUTPUT_STATE_FOR_ON);
+  ToggleLightTimer.SetTimer(2000); // 2s toggle
+
   pinMode(ACTIVITY_LED,OUTPUT);
   digitalWrite(ACTIVITY_LED,lastLED);
 
@@ -177,6 +188,7 @@ void setup(void){
   }
 
   server.on("/", handlePump);
+  server.on("/nap", delayPump);
   server.on("/firmwareupdate", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", loginIndex);
@@ -200,6 +212,11 @@ void setup(void){
       server.send(200, "text/html", loginIndex);
   });
   /*handling uploading firmware file */
+  server.on("/update", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", loginIndex);
+  });
+
   server.on("/update", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
     if (loggedIn)
@@ -245,33 +262,39 @@ String DOW[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Sa
 void handlePump() {
   char temp[20];
   String out = "<HTML><FORM NAME='form' METHOD='POST' ACTION='changeofftime'>\n";
-  out += "<h1>Myrtle's water pump</h1>\n";
+  out += "<h1>Myrtle Control Center</h1>\n";
   out += "<p id='call'><br>";
   if (last_pump_state)
     out += "Currently pumping water";
   else {
-    out += "NOT currently pumping water for ";
-    sprintf(temp,"%d",QuietTimer.GetRemaining());
+    out += "NOT pumping water for ";
+    sprintf(temp,"%d",QuietTimer.GetRemaining()/1000);
     out += temp;
-    out += " ms";
+    out += " seconds";
   }
   out += "<br>&nbsp</p>\nOff time: <INPUT id='setinp' TYPE='TEXT' NAME='timeoff' value='";
   sprintf(temp,"%d",QuietTimeMS/1000/60); // convert our MS to Minutes
   out += temp;
   out += "'> minutes<br>\n";
-out += "GPIO=";
-if (AskForQuiet->GetState()) out+="ON";
-else                         out+="OFF";
-out += "<br>\n";
-  out += "<INPUT TYPE='SUBMIT' NAME='submit' VALUE='Change timeoff'>\n";
+
+  out += "<br>&nbsp</p><a href='nap'>Have some quiet time!</a><br>&nbsp</p>";
+
+  out += "<INPUT TYPE='SUBMIT' NAME='submit' VALUE='Setup'>\n";
   out += "<br>" + DOW[timeClient.getDay()] + " " + timeClient.getFormattedTime();
   out += "<br>" + timeClient.TimeJump;
   out += "<br>Version " VERSION;
-  out += "<br><a href='firmwareupdate'>Upload new firmware";
+  out += "<br><a href='firmwareupdate'>Upload new firmware</a>";
   out += "</FORM></HTML>\n" + getStyle();
   server.send(200, "text/html", out);
 }
 
+
+void delayPump() {
+  last_pump_state = false; // turn's off the pump, which is actually turning ON the relay
+  digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
+  QuietTimer.SetTimer(QuietTimeMS);
+  handlePump(); // then present the same page
+}
 
 // ESPhttpUpdate.updateSpiffs() is a call to "go see" if an updated binary is available for us to download
 
@@ -283,16 +306,20 @@ void loop(void){
   if (AskForQuiet->Process()) {
     // state just changed on the input
     if (AskForQuiet->GetState()) {
-      // Button Pressed; Ensure the timer restarts and the output is Off
-      last_pump_state = false;
-      digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
-      QuietTimer.SetTimer(QuietTimeMS);
+      // Button Pressed, take that nap
+      delayPump(); // started via Web or GPIO
     }
   }
   if (QuietTimer.IsTimeout()) {
     last_pump_state = true;
     digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
     QuietTimer.ResetTimer(); // will cause this to run again in the defined period, but prevents the 12.4 day timer-wrap problem
+  }
+
+  if (ToggleLightTimer.IsTimeout()) {
+    last_light_state = true; // !last_light_state;
+    digitalWrite(LIGHT_RELAY_OUTPUT, last_light_state == LIGHT_OUTPUT_STATE_FOR_ON);
+    ToggleLightTimer.ResetTimer();
   }
 
   if (Tick.IsTimeout()) {
