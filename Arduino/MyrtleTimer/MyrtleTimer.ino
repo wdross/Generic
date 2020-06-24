@@ -30,13 +30,15 @@ ESP8266WebServer server(80);
 const int PUMP_RELAY_OUTPUT = 12; // #0 is the RED LED on the breakout board
 const bool PUMP_OUTPUT_STATE_FOR_ON = false; // when we pull this output low the relay is activated
 bool last_pump_state = true; // pump water when turned on!
-int QuietTimeMS = 5000; // just start with 5 seconds
+int QuietTimeMS = 20*60*1000L; // Default to 20 minutes
 CFwTimer QuietTimer; // how much time is left quiet before we turn the pump back on
 
 const int LIGHT_RELAY_OUTPUT = 14;
 const bool LIGHT_OUTPUT_STATE_FOR_ON = false;
 bool last_light_state = false; // leave off until we get the time and know which way it should be
-CFwTimer ToggleLightTimer;
+#define TIME_OF_DAY_ON   8*3600L // 8am
+#define TIME_OF_DAY_OFF 21*3600L // 9pm
+
 
 #define ACTIVITY_LED 2 // blue LED near the antenna end of the Feather
 bool lastLED = false;
@@ -155,9 +157,8 @@ void setup(void){
   digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
 
   pinMode(LIGHT_RELAY_OUTPUT, OUTPUT);
-  last_light_state = true; // always start with light on
+  last_light_state = false; // start with light off
   digitalWrite(LIGHT_RELAY_OUTPUT, last_light_state == LIGHT_OUTPUT_STATE_FOR_ON);
-  ToggleLightTimer.SetTimer(2000); // 2s toggle
 
   pinMode(ACTIVITY_LED,OUTPUT);
   digitalWrite(ACTIVITY_LED,lastLED);
@@ -316,11 +317,19 @@ void loop(void){
     QuietTimer.ResetTimer(); // will cause this to run again in the defined period, but prevents the 12.4 day timer-wrap problem
   }
 
-  if (ToggleLightTimer.IsTimeout()) {
-    last_light_state = true; // !last_light_state;
-    digitalWrite(LIGHT_RELAY_OUTPUT, last_light_state == LIGHT_OUTPUT_STATE_FOR_ON);
-    ToggleLightTimer.ResetTimer();
+  if (timeClient.timeKnown()) {
+    if (TIME_OF_DAY_ON < TIME_OF_DAY_OFF) {
+      // "normal", time ON is before time OFF
+      last_light_state = (timeClient.getSecondsOfDay() >= TIME_OF_DAY_ON &&
+                          timeClient.getSecondsOfDay() < TIME_OF_DAY_OFF);
+    }
+    else {
+      // "upside down": Time on is basically overnight
+      last_light_state = (timeClient.getSecondsOfDay() >= TIME_OF_DAY_ON ||
+                          timeClient.getSecondsOfDay() < TIME_OF_DAY_OFF);
+    }
   }
+  digitalWrite(LIGHT_RELAY_OUTPUT, last_light_state == LIGHT_OUTPUT_STATE_FOR_ON);
 
   if (Tick.IsTimeout()) {
     lastLED = !lastLED;
