@@ -1,0 +1,33 @@
+Setting up Dell Inspiron 1545 with HomeAssistant
+
+Followed Supervised Installation instructions at
+  https://community.home-assistant.io/t/installing-home-assistant-supervised-on-debian-10/200253
+
+- The key was after getting Debian itself up and running, to get
+  HA installed and kicked of the following script steps where executed:
+>>>EOF
+sudo -i
+apt-get install -y software-properties-common apparmor-utils apt-transport-https ca-certificates curl dbus jq network-manager
+systemctl disable ModemManager
+systemctl stop ModemManager
+curl -fsSL get.docker.com | sh
+curl -sL "https://raw.githubusercontent.com/Kanga-Who/home-assistant/master/supervised-installer.sh" | bash -s
+<<<EOF
+
+
+Modifications to my system:
+
+Prevent hybernation with the lid closing:
+- nano /etc/systemd/logind.conf
+- Find HandleLidSwitch and alter to read:
+  HandleLidSwitch=ignore
+
+Prevent sleeping/hybernating:
+- nano /etc/systemd/sleep.conf
+- alter following parameters to be:
+  [Sleep]
+  AllowSuspend=no
+  AllowHibernation=no
+  AllowSuspendThenHibernate=no
+  AllowHybridSleep=no
+
