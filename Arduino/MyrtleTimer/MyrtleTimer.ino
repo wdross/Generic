@@ -6,10 +6,11 @@
 
 // Items yet to be done in this project:
 // - 2nd relay for light
-//   - needs scheduling
+//   - needs dynamic scheduling
 //   - EDT/EST behaviors; EEPROM
 // - web page defines default "off" time when asked to "nap"
 //   - store that value in EEPROM
+// - 
 // - get it to respond/work with Alexa
 
 #include <ESP8266WiFi.h>
@@ -23,14 +24,14 @@
 
 #define HOST "myrtle"     // what name to show via DNS?
 
-#define VERSION "0.55prototype"
+#define VERSION "0.60"
 
 ESP8266WebServer server(80);
 
 const int PUMP_RELAY_OUTPUT = 12; // #0 is the RED LED on the breakout board
 const bool PUMP_OUTPUT_STATE_FOR_ON = false; // when we pull this output low the relay is activated
 bool last_pump_state = true; // pump water when turned on!
-int QuietTimeMS = 20*60*1000L; // Default to 20 minutes
+int QuietTimeMS = 2*60*60*1000L; // Default to 2 hours
 CFwTimer QuietTimer; // how much time is left quiet before we turn the pump back on
 
 const int LIGHT_RELAY_OUTPUT = 14;
@@ -44,7 +45,7 @@ bool last_light_state = false; // leave off until we get the time and know which
 bool lastLED = false;
 CFwTimer Tick(500);
 
-#define LOCAL_PUMP_OFF_BTN 0 // #0 is the GPIO0 INPUT as well as the RED LED output
+#define LOCAL_PUMP_OFF_BTN 5
 CFwDebouncedDigitalInput *AskForQuiet;
 
 bool loggedIn = false; // has someone logged in and provided the correct ID/pw?
@@ -151,6 +152,12 @@ void handleNotFound(){
   server.send(404, "text/plain", message);
 }
 
+bool ClientOnLocalWiFi(WiFiClient clnt) {
+  return ((clnt.remoteIP()[0] == clnt.localIP()[0]) &&
+          (clnt.remoteIP()[1] == clnt.localIP()[1]) &&
+          (clnt.remoteIP()[2] == clnt.localIP()[2]));
+}
+
 void setup(void){
   pinMode(PUMP_RELAY_OUTPUT, OUTPUT);
   last_pump_state = false; // always start "off"
@@ -215,16 +222,24 @@ void setup(void){
   /*handling uploading firmware file */
   server.on("/update", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
-    server.send(200, "text/html", loginIndex);
+    if (ClientOnLocalWiFi(server.client())) {
+      server.send(200, "text/html", loginIndex);
+    }
+    else
+      handlePump();
   });
 
   server.on("/update", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
-    if (loggedIn)
-      server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    if (ClientOnLocalWiFi(server.client())) {
+      if (loggedIn)
+        server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+      else
+        server.send(200, "text/html", loginIndex);
+      ESP.restart();
+    }
     else
-      server.send(200, "text/html", loginIndex);
-    ESP.restart();
+      handlePump();
   }, []() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
@@ -291,9 +306,11 @@ void handlePump() {
 
 
 void delayPump() {
-  last_pump_state = false; // turn's off the pump, which is actually turning ON the relay
-  digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
-  QuietTimer.SetTimer(QuietTimeMS);
+  if (ClientOnLocalWiFi(server.client())) {
+    last_pump_state = false; // turn's off the pump, which is actually turning ON the relay
+    digitalWrite(PUMP_RELAY_OUTPUT, last_pump_state == PUMP_OUTPUT_STATE_FOR_ON);
+    QuietTimer.SetTimer(QuietTimeMS);
+  }
   handlePump(); // then present the same page
 }
 
@@ -307,8 +324,11 @@ void loop(void){
   if (AskForQuiet->Process()) {
     // state just changed on the input
     if (AskForQuiet->GetState()) {
-      // Button Pressed, take that nap
-      delayPump(); // started via Web or GPIO
+      // Button Pressed, toggle the pump
+      if (QuietTimer.IsTiming())
+        QuietTimer.SetTimer(0); // abort the current timer: calls code below to start pumping
+      else // we are already pumping, the stop
+        delayPump(); // started via Web or GPIO
     }
   }
   if (QuietTimer.IsTimeout()) {

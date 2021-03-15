@@ -1,10 +1,14 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #define DEBUG_FAUXMO
+#define DEBUG_FAUXMO_VERBOSE_TCP
+#define DEBUG_FAUXMO_VERBOSE_UDP
 #include "fauxmoESP.h"
 #include "C:\Installs\arduino-1.6.12\libraries\Credentials.h"
 
 #define SERIAL_BAUDRATE                 115200
+#define ACTIVITY_LED 2 // blue LED near the antenna end of the Feather
+#define STATE_FOR_OFF false
 
 fauxmoESP fauxmo;
 
@@ -32,29 +36,33 @@ void wifiSetup() {
     Serial.printf("[WIFI] STATION Mode, SSID: %s, IP address: %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
 }
 
-void callback(uint8_t device_id, const char * device_name, bool state) {
-  Serial.print("Device "); Serial.print(device_name); 
-  Serial.print(" state: ");
-  if (state) {
-    Serial.println("ON");
-  } else {
-    Serial.println("OFF");
-  }
-}
-
 void setup() {
+    pinMode(ACTIVITY_LED,OUTPUT);
+    digitalWrite(ACTIVITY_LED,false == STATE_FOR_OFF);
+
     // Init serial port and clean garbage
     Serial.begin(SERIAL_BAUDRATE);
     Serial.println("FauxMo demo sketch");
-    Serial.println("After connection, ask Alexa/Echo to 'turn <devicename> on' or 'off'");
 
     // Wifi
-    wifiSetup();
+    wifiSetup(); // stalls until connected to WiFi
 
     // Fauxmo
+    fauxmo.setPort(80);  
+    fauxmo.enable(true);
     fauxmo.addDevice("relay");
     fauxmo.addDevice("pixels");
-    fauxmo.onMessage(callback);
+
+    fauxmo.onSetState([](unsigned char device_id, const char * device_name, 
+                         bool state, unsigned char value) {
+      Serial.print("Device name: ");
+      Serial.print(device_name);
+      Serial.print("Value: ");
+      Serial.print(value);
+      Serial.println(state?" true":" false");
+      // Here we handle the command received
+      digitalWrite(ACTIVITY_LED,state == STATE_FOR_OFF);
+    });
 }
 
 void loop() {

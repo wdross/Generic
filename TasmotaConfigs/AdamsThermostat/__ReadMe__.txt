@@ -49,10 +49,8 @@ Backlog MqttHost _IP_ADDRESS_; MqttUser _USER_; MqttPassword _PASSWORD_
 SetOption19 1
 # temperature updates every 10 seconds (default is 300 seconds)
 TelePeriod 10
-
-
-Each commanded state of the relays are stored in EEPROM.
-Upon unexpected loss of power and the unit is again powered will restore the
-state of the relays.  Use "PowerOnState 0" to cancel this behavior to ensure
-furnace will never be ON unless commanded by HomeAssistant.
-For more details: https://tasmota.github.io/docs/PowerOnState/
+# Ensure upon boot that the relay is OFF until commanded by HomeAssistant:
+PowerOnState 0
+# Ensure relay is on for a maximum amount 180 seconds (in case HA turns on the furnace then stops processing);
+# the value in PulseTime is desired_max_time+100 so 180 seconds is 280:
+PulseTime 280
