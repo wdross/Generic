@@ -34,7 +34,12 @@ class DS1631:
         self.bus.write_word_data(self.address, reg, rawval);
 
     def get_temp(self):      # returns degrees C
-        return self.bus.read_byte_data(self.address, 0xAA);
+        t = self.bus.read_byte_data(self.address, 0xAA);
+        if t > 127:
+            t = t - 256;
+        else:
+            t = t;
+        return t;
     
     def get_tl(self):        # reads the lower temperature register
         return self.get_temp_reg(0xA1);
