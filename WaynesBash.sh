@@ -5,6 +5,11 @@
 # with each login -- the whole idea of having a customized script, right?!?
 if [ $(pwd) == $HOME ]; then
   grep $0 .bashrc &>/dev/null || { sed -i -e "\$a#\n# Include my favorites:\n$0" .bashrc; }
+
+#  if [ $(grep -c history-search- .inputrc) -lt 2 ]; then
+#    sed -i '$ a "\e[A": history-search-backward"
+#    sed -i '$ a "\e[B": history-search-forward"
+#  fi
 fi
 
 # Get time in seconds:
