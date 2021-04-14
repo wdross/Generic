@@ -10,3 +10,5 @@ to be purchased the next time I'm at the grocery store.
 Arduino\ contains some projects I am attempting
 
 pi\ are projects for raspberry pi's (most noteably the cost effective zero!)
+
+TasmotaConfigs\ are projects I built and utilized the flexible Tasmota firmware
