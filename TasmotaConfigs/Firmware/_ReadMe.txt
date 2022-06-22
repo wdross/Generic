@@ -16,3 +16,6 @@ tasmota\user_config_override.h:
  - #define SEESAW_SOIL_PUBLISH // send only if reported moisture has changed
  - #define SEESAW_SOIL_RAW     // show raw readings on Web interface
  - #define USE_MCP9808      // [I2cDriver51] Enable MCP9808 temperature sensor (I2C addresses 0x18 - 0x1F) (+0k9 code)
+
+
+The tasmota_12.0.2.bin build is stock firmware, used to flash Sonoff S31 Wifi outlets
