@@ -9,7 +9,7 @@
 "Battery_voltage" "V" "battery-outline"
 "Battery_charge_current" "A" "current-dc"
 "Battery_capacity" "%" "battery-outline"
-"Heatsink_temperature" "°C" "thermometer"
+"Heatsink_temperature" "°F" "thermometer"
 "PV_in_current" "A" "current-dc"
 "PV_in_voltage" "V" "solar-panel-large"
 "SCC_voltage" "V" "current-dc"

@@ -71,7 +71,13 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
   else
     for i in {0..15}; do
       eval "topics=(${TopicsInOrder[$i]})"
-      pushMQTTData "${topics[0]}" "${SPLIT[$i]}"
+      if [[ "${topics[0]}" = "Heatsink_temperature" ]]; then
+        # change provided C into F; HA doesn't seem to convert as it should...
+        temper=`bc <<< "(${SPLIT[$i]}*9/5)+32"`
+        pushMQTTData "${topics[0]}" `printf "%0.2f" "${temper}"`
+      else
+        pushMQTTData "${topics[0]}" "${SPLIT[$i]}"
+      fi
       # Have variables we want to catch to use in later math:
       if [[ "${topics[0]}" = "SCC_voltage" ]]; then
         SCC_voltage="${SPLIT[$i]}"
