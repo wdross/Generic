@@ -53,7 +53,19 @@ if [ "$1" == "config" ]; then
       registerTopic "${array[0]}" "${array[1]}" "${array[2]}"
     fi
   done
-
+  exit
+elif [ "$1" == "pub" ]; then
+  # one-shot command-line option to create a transmit of a topic's value
+  if [ "$2" == "" ]; then
+    echo "Please provide a topic you want to publish"
+  elif [ "$3" == "" ]; then
+    echo "Please provide a value you want the topic to have"
+  else
+    # We need to pick up our config where to send our data
+    . InitVariables.sh
+    # next two parameters are topic and its value
+    pushMQTTData "$2" "$3"
+  fi
   exit
 fi
 
