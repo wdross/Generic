@@ -27,7 +27,7 @@ pushMQTTData () {
         -u $MQTT_USERNAME \
         -P $MQTT_PASSWORD \
         -i $MQTT_CLIENTID \
-        -t $MQTT_TOPIC"/sensor/"$MQTT_DEVICENAME"_"$1 \
+        $3 -t $MQTT_TOPIC"/sensor/"$MQTT_DEVICENAME"_"$1 \
         -m $2
 #  echo \
 #        -t $MQTT_TOPIC"/sensor/"$MQTT_DEVICENAME"_"$1 \
@@ -63,8 +63,9 @@ elif [ "$1" == "pub" ]; then
   else
     # We need to pick up our config where to send our data
     . InitVariables.sh
-    # next two parameters are topic and its value
-    pushMQTTData "$2" "$3"
+    # next two parameters are topic and its value --
+    # optional last parameter can send "-r"
+    pushMQTTData "$2" "$3" "$4"
   fi
   exit
 fi
@@ -166,9 +167,9 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
     sd=`date +%Y%m%d`                               # System's Date
     fd=`date -r /run/lock/todays_PV_Wh.txt +%Y%m%d` # File's Date
     if [ "$fd" -ne "$sd" ]; then
-      pushMQTTData "wholeday_PV_Wh" `printf "%0.2f" "${todays_PV_Wh}"`
+      pushMQTTData "wholeday_PV_Wh" `printf "%0.2f -r" "${todays_PV_Wh}"`
       todays_PV_Wh=0
-      pushMQTTData "wholeday_Load_Wh" `printf "%0.2f" "${todays_Load_Wh}"`
+      pushMQTTData "wholeday_Load_Wh" `printf "%0.2f -r" "${todays_Load_Wh}"`
       todays_Load_Wh=0
     fi
 
