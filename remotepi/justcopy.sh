@@ -5,6 +5,8 @@
 # but will let the script not fail for lack of existence
 touch /run/justcopy_AskedForReboot
 touch /run/justcopy_ScriptStarted
+# Initialize the temp sensor to 'Start'
+i2cset -y 1 0x48 0x51
 
 while true; do
   if [ -f /run/response.txt ]; then
@@ -57,5 +59,23 @@ while true; do
     # we don't have this file, so must have been a recent restart, make it
     touch /run/sent
   fi
+
+  R=`i2cget -y 1 0x48 0xAA`
+  if [[ "$R" = "0xc4" ]]; then
+    # When unitialized, it appears to post this value.  Tell unit to 'Start'
+    i2cset -y 1 0x48 0x51
+    sleep 0.7 # should only take this path one time per boot
+    # Reload our variable
+    R=`i2cget -y 1 0x48 0xAA`
+  fi
+  R=`printf "%d" "$R"`
+  if (( "$R" > 127 )); then
+    # twos complimeent
+    R=`bc <<< "$R-256"`
+  fi
+  [ -z "$R" ] && R=0
+  R=`echo $R \* 9.0 / 5.0 + 32 | bc -l`
+  printf "%0.1f\n" $R > /run/buildingtemp
+
   sleep 3
 done
