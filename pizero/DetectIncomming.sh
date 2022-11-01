@@ -23,7 +23,7 @@ while true; do
     let secs=`date +%s`-`date +%s -r /run/lock/sent`
     if (( $secs > 180 )); then
       # Send entry with the NO COMM state
-      pushMQTTData "Inverter_mode" "8"
+      ./ParseIncomming.sh pub "Inverter_mode" "8" -r
       touch /run/lock/sent # don't keep hammering this
       touch /run/lock/NOCOMM
     fi

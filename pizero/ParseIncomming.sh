@@ -133,6 +133,11 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
       if [[ "${topics[0]}" != "toss" ]]; then
         pushMQTTData "${topics[0]}" "${SPLIT[$i]}"
       fi
+      if [[ "${topics[0]}" = "Battery_recharge_voltage" ]]; then
+        Battery_recharge_voltage="${SPLIT[$i]}"
+      elif [[ "${topics[0]}" = "Battery_redischarge_voltage" ]]; then
+        Battery_redischarge_voltage="${SPLIT[$i]}"
+      fi
     done
 
     # Line 3: QMOD and QPIWS responses
@@ -171,6 +176,11 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
       todays_PV_Wh=0
       pushMQTTData "wholeday_Load_Wh" `printf "%0.2f -r" "${todays_Load_Wh}"`
       todays_Load_Wh=0
+      # Need to force a small change once in a while so the graphs will display
+      Battery_recharge_voltage=`bc <<< "${Battery_recharge_voltage}+0.01"`
+      pushMQTTData "Battery_recharge_voltage" `printf "%0.2f -r" "${Battery_recharge_voltage}"`
+      Battery_redischarge_voltage=`bc <<< "${Battery_redischarge_voltage}+0.01"`
+      pushMQTTData "Battery_redischarge_voltage" `printf "%0.2f -r" "${Battery_redischarge_voltage}"`
     fi
 
     todays_PV_Wh=`bc <<< "$todays_PV_Wh"+"$PV_in_watthour"`
