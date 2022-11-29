@@ -57,6 +57,9 @@ toss PV_power_balance
 === LINE 4 ===
 "wlan0_tx_bytes" "b" "upload-network"
 "wlan0_rx_bytes" "b" "download-network"
+toss Linux_Timestamp
+toss Elapsed_Time
+"Building_temperature" "°F" "thermometer"
 
 === More computed values ===
 "todays_PV_Wh" "Wh" "chart-bell-curve"

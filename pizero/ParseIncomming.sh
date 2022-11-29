@@ -72,6 +72,7 @@ fi
 
 
 ### Normal code path: invoked every 30 sec to process the contents of /run/lock/process.txt
+. InitVariables.sh
 while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
   # Line #1: QPIGS response
   eval "first=(${fourlines[0]})" # drops the quotes
@@ -154,10 +155,13 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
     # TopicsInOrder[57] is the first entry for this line
     # 2 entries in this line to process
     IFS=' ' read -ra SPLIT <<< "${fourlines[3]}"
-    for i in {0..1}; do
+    for i in {0..4}; do
       let line=${i}+57
       eval "topics=(${TopicsInOrder[$line]})"
-      pushMQTTData "${topics[0]}" "${SPLIT[$i]}"
+      # Some items are marked as 'toss' in the TopicsInOrder list - don't use them
+      if [[ "${topics[0]}" != "toss" ]]; then
+        pushMQTTData "${topics[0]}" "${SPLIT[$i]}"
+      fi
     done
 
     # another Four lines in the TopicsInOrder will be for today's ever-increasing
