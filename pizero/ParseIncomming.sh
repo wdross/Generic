@@ -97,11 +97,15 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
         SCC_voltage="${SPLIT[$i]}"
       elif [[ "${topics[0]}" = "PV_in_current" ]]; then
         PV_in_current="${SPLIT[$i]}"
+      elif [[ "${topics[0]}" = "Battery_charge_current" ]]; then
+        Battery_charge_current="${SPLIT[$i]}"
+      elif [[ "${topics[0]}" = "Battery_voltage" ]]; then
+        Battery_voltage="${SPLIT[$i]}"
       elif [[ "${topics[0]}" = "Load_watt" ]]; then
         Load_watt="${SPLIT[$i]}"
       fi
     done
-    # pick out 3 status we care about: Load, SCC charging and AC charging
+    # pick out 3 status characters we care about: Load, SCC charging and AC charging
     status="${SPLIT[16]}" # it is in the 16th 'word'
     eval "topics=(${TopicsInOrder[17]})"
     pushMQTTData "${topics[0]}" "${status:3:1}"
@@ -110,17 +114,22 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
     pushMQTTData "${topics[0]}" "${status:6:1}"
 
     eval "topics=(${TopicsInOrder[19]})"
-    pushMQTTData "${topics[0]}" "${status:7:1}"
+    AC_charge_on="${status:7:1}"
+    pushMQTTData "${topics[0]}" "$AC_charge_on"
 
     # pv_input_watts = scc_voltage * pv_input_current;
     # pv_input_watthour = (float)pv_input_watts * runinterval / 3600.0;
     # load_watthour = (float)load_watt * runinterval / 3600.0;
+    # Gen_watthour = Battery_voltage * Battery_charge_current * runinterval / 3600
     PV_in_watts=`echo $SCC_voltage \* $PV_in_current | bc -l`
     pushMQTTData "PV_in_watts" "${PV_in_watts}"
     PV_in_watthour=`echo $PV_in_watts \* 30.0 / 3600.0 | bc -l`
     pushMQTTData "PV_in_watthour" `printf "%0.2f" "${PV_in_watthour}"`
     Load_watthour=`echo $Load_watt \* 30.0 / 3600.0 | bc -l`
     pushMQTTData "Load_watthour" `printf "%0.2f" "${Load_watthour}"`
+    # This will compute Gen_watthour if AC_charge_on (else a zero results in zero watthour)
+    Gen_watthour=`echo $AC_charge_on \* $Battery_voltage \* $Battery_charge_current \* 30.0 / 3600.0 | bc -l`
+    pushMQTTData "Gen_watthour" `printf "%0.2f" "${Gen_watthour}"`
 
     # Line #2: QPIRI response
     # TopicsInOrder[26] is the first entry for this line
@@ -164,12 +173,14 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
       fi
     done
 
-    # another Four lines in the TopicsInOrder will be for today's ever-increasing
+    # additional lines in the TopicsInOrder will be for today's ever-increasing
     # and wholeday entries, collecting last scan Wh to tally
     todays_PV_Wh=`cat /run/lock/todays_PV_Wh.txt`
     [ -z "$todays_PV_Wh" ] && todays_PV_Wh=0 # ensure a zero for math
     todays_Load_Wh=`cat /run/lock/todays_Load_Wh.txt`
     [ -z "$todays_Load_Wh" ] && todays_Load_Wh=0 # ensure a zero for math
+    todays_Gen_Wh=`cat /run/lock/todays_Gen_Wh.txt`
+    [ -z "$todays_Gen_Wh" ] && todays_Gen_Wh=0 # ensure a zero for math
 
     # if it is a different day than what was last written, we
     # write those values to the wholeday entry and start over
@@ -180,6 +191,8 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
       todays_PV_Wh=0
       pushMQTTData "wholeday_Load_Wh" `printf "%0.2f -r" "${todays_Load_Wh}"`
       todays_Load_Wh=0
+      pushMQTTData "wholeday_Gen_Wh" `printf "%0.2f -r" "${todays_Gen_Wh}"`
+      todays_Gen_Wh=0
       # Need to force a small change once in a while so the graphs will display
       Battery_recharge_voltage=`bc <<< "${Battery_recharge_voltage}+0.01"`
       pushMQTTData "Battery_recharge_voltage" `printf "%0.2f -r" "${Battery_recharge_voltage}"`
@@ -197,5 +210,8 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
     pushMQTTData "todays_Load_Wh" `printf "%0.2f" "${todays_Load_Wh}"`
     echo "$todays_Load_Wh" > /run/lock/todays_Load_Wh.txt
 
+    todays_Gen_Wh=`bc <<< "$todays_Gen_Wh"+"$Gen_watthour"`
+    pushMQTTData "todays_Gen_Wh" `printf "%0.2f" "${todays_Gen_Wh}"`
+    echo "$todays_Gen_Wh" > /run/lock/todays_Gen_Wh.txt
   fi
 done < /run/lock/process.txt

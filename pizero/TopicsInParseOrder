@@ -62,7 +62,10 @@ toss Elapsed_Time
 "Building_temperature" "°F" "thermometer"
 
 === More computed values ===
+"Gen_watthour" "Wh" "chart-bell-curve"      "=SCC_voltage * Battery_charge_current * 30 / 3600"
 "todays_PV_Wh" "Wh" "chart-bell-curve"
 "todays_Load_Wh" "Wh" "chart-bell-curve"
+"todays_Gen_Wh" "Wh" "chart-bell-curve"
 "wholeday_PV_Wh" "Wh" "chart-bell-curve"
 "wholeday_Load_Wh" "Wh" "chart-bell-curve"
+"wholeday_Gen_Wh" "Wh" "chart-bell-curve"
