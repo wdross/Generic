@@ -128,7 +128,8 @@ while mapfile -t -n 4 fourlines && ((${#fourlines[@]})); do
     Load_watthour=`echo $Load_watt \* 30.0 / 3600.0 | bc -l`
     pushMQTTData "Load_watthour" `printf "%0.2f" "${Load_watthour}"`
     # This will compute Gen_watthour if AC_charge_on (else a zero results in zero watthour)
-    Gen_watthour=`echo $AC_charge_on \* $Battery_voltage \* $Battery_charge_current \* 30.0 / 3600.0 | bc -l`
+    # We are adding a constant 1350 Wh as we have the Outback also set up to charge at 55A
+    Gen_watthour=`echo \( $AC_charge_on \* $Battery_voltage \* $Battery_charge_current + $AC_charge_on \* 1350 \) \* 30.0 / 3600.0 | bc -l`
     pushMQTTData "Gen_watthour" `printf "%0.2f" "${Gen_watthour}"`
 
     # Line #2: QPIRI response
