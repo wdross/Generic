@@ -4,7 +4,7 @@ Followed Supervised Installation instructions at
   https://community.home-assistant.io/t/installing-home-assistant-supervised-on-debian-10/200253
 
 - The key was after getting Debian itself up and running, to get
-  HA installed and kicked of the following script steps where executed:
+  HA installed and kicked off the following script steps where I executed:
 >>>EOF
 sudo -i
 apt-get install -y software-properties-common apparmor-utils apt-transport-https ca-certificates curl dbus jq network-manager
@@ -13,6 +13,16 @@ systemctl stop ModemManager
 curl -fsSL get.docker.com | sh
 curl -sL "https://raw.githubusercontent.com/Kanga-Who/home-assistant/master/supervised-installer.sh" | bash -s
 <<<EOF
+
+
+This creates a config file at /etc/hassio.json
+
+The systemctl script is found in /usr/sbin/hassio-supervisor and
+launches docker with the correct arguments.
+
+The data stored over power cycles is in /usr/share/hassio/
+- ${HASSIO_DATA}, and  is mounted as rw
+- for which a link to 'hassio' is found in ~ as a reminder
 
 
 Modifications to my system:
