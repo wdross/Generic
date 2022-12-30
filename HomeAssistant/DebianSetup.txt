@@ -11,6 +11,11 @@ apt-get install -y software-properties-common apparmor-utils apt-transport-https
 systemctl disable ModemManager
 systemctl stop ModemManager
 curl -fsSL get.docker.com | sh
+
+# should have installed docker-compose at the same time:
+curl -L "https://github.com/docker/compose/releases/download/v2.12.2/docker-compose-$(uname -s)-$(uname -m)"  -o /usr/bin/docker-compose
+chmod +x /usr/bin/docker-compose
+
 curl -sL "https://raw.githubusercontent.com/Kanga-Who/home-assistant/master/supervised-installer.sh" | bash -s
 <<<EOF
 
@@ -40,4 +45,21 @@ Prevent sleeping/hybernating:
   AllowHibernation=no
   AllowSuspendThenHibernate=no
   AllowHybridSleep=no
+
+
+Dec 30 2022:
+Introduced pi-hole:
+Created folder Generic/HomeAssistant/pi-hole for docker-compose.yml and empty
+support folders for data stored over power cycles/restarts.
+
+cd ~/Generic/HomeAssistant/pi-hole
+sudo docker-compose up
+
+Log into http://192.168.1.2/admin with password from docker-compose.yml
+- Settings -> DNS -> Rate-limiting: was 1000, increase to 10k
+
+Log into R7000 home router
+- Internet -> DNS address
+  Primary DNS = 192.18.1.2
+  Secondary can use the ISP provider's 66.51.150.6 OR Google 8.8.8.8 OR 2.2.2.2
 
