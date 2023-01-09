@@ -29,6 +29,15 @@ The data stored over power cycles is in /usr/share/hassio/
 - ${HASSIO_DATA}, and  is mounted as rw
 - for which a link to 'hassio' is found in ~ as a reminder
 
+Jan 08 2023:
+To get rid of "Unsupported system - OS-Agent issues", installed os-agent:
+- go to https://github.com/home-assistant/os-agent/releases/latest
+- download Asset associated with latest release, of the form *_linux_x86_64.deb:
+  i.e. os-agent_1.4.1_linux_x86_64.deb
+>> cd ~/Downloads
+>> wget https://github.com/home-assistant/os-agent/releases/download/1.4.1/os-agent_1.4.1_linux_x86_64.deb
+>> sudo dpkg -i os-agent_1.4.1_linux_x86_64.deb
+
 
 Modifications to my system:
 
