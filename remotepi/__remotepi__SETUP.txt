@@ -1,0 +1,45 @@
+Followed instructions from:
+https://pimylifeup.com/raspberry-pi-wireless-access-point/
+
+VERY SIMILAR sequence of events on this much cleaner link:
+https://github.com/SurferTim/documentation/blob/6bc583965254fa292a470990c40b145f553f6b34/configuration/wireless/access-point.md
+though we set up WireGuard *instead* of a bridge (using bridge-utils & brctl)
+
+Our Access Point will be on 192.168.222.1/24
+Hosting SSID <HOST_SSID>
+
+Files touched/created on remotepi:
+/etc/dhcpcd.conf          [set up AP static & kill wpa_supplicant]
+/etc/hostapd/hostapd.conf [create AP config, SSID, key]
+/etc/default/hostapd      [point to .conf]
+/etc/init.d/hostapd       [no change, DAEMON_CONF already pointed to /etc/hostapd/hostapd.conf?]
+/etc/dnsmasq.conf         [replaced all with our hosted IP range]
+/etc/sysctl.conf          [enable ipv4 forwarding]
+
+"rfkill unblock wifi" when country/region not set.
+
+Trying to route everything thru <INTERFACE_NAME> VPN connection, the key to getting this
+working was to add PostUp rules to the .conf files to push the packets thru:
+- on pizero / WireGuard VPN Host, in /etc/wireguard/wg0.conf:
+[Interface]
+PrivateKey = <PRIVATE_KEY_1>
+Address = 10.6.0.1/24
+ListenPort = 51820
+PostUp = iptables -t nat -A POSTROUTING -s 10.6.0.0/24 -o eth0 -j MASQUERADE; iptables -A INPUT -p udp -m udp --dport 51820 -j ACCEPT; iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT;
+PostDown =
+     :
+- on remotepi: /etc/wireguard/<INTERFACE_NAME>.conf
+[Interface]
+PrivateKey = <PRIVATE_KEY_2>
+Address = 10.6.0.2/24
+DNS = 1.1.1.1, 1.0.0.1
+PostUp = iptables -t nat -A POSTROUTING -o <INTERFACE_NAME> -j MASQUERADE
+PostDown =
+     :
+
+Debugging:
+# See all WireGuard traffic while on remotepi:
+sudo tcpdump -i eth0 'udp port 51820'
+
+# See all NON-WireGuard traffic while on remotepi:
+sudo tcpdump -i eth0 '!udp port 51820'
