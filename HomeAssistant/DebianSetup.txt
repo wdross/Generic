@@ -41,12 +41,12 @@ To get rid of "Unsupported system - OS-Agent issues", installed os-agent:
 
 Modifications to my system:
 
-Prevent hybernation with the lid closing:
+Prevent hibernation with the lid closing:
 - nano /etc/systemd/logind.conf
 - Find HandleLidSwitch and alter to read:
   HandleLidSwitch=ignore
 
-Prevent sleeping/hybernating:
+Prevent sleeping/hibernating:
 - nano /etc/systemd/sleep.conf
 - alter following parameters to be:
   [Sleep]
