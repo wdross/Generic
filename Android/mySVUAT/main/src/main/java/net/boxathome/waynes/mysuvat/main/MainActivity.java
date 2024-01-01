@@ -102,7 +102,6 @@ public class MainActivity extends AppCompatActivity {
             //
             // They are different enough that they could contain errors, so need to get to the
             // bottom of that and do the correct implementation
-//            Toast.makeText(MainActivity.this,"OK boss, working on it...", Toast.LENGTH_LONG).show();
 
             if ((availableParams & haveDistance) == 0) {
                 et = findViewById(R.id.SText);
