@@ -1,0 +1,43 @@
+esphome:
+  name: stove-side
+  friendly_name: Stove Side
+
+esp8266:
+  board: esp01_1m
+
+switch:
+  platform: gpio
+  pin: 12
+  name: "Stove Side Lights"
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "Pk56lQKJ4wDobtHWqRnAWPxccSYF61D2h90ozw7k61U="
+
+ota:
+  password: "e1a9135765d47cb6e1f3a26629d4dbde"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Stove-Side Fallback Hotspot"
+    password: "okaRwx9hcZO8"
+
+captive_portal:
+
+i2c:
+  sda: 0
+  scl: 4
+  scan: true
+
+sensor:
+  - platform: mcp9808
+    name: "Over Stove Temperature"
+    update_interval: 15s  

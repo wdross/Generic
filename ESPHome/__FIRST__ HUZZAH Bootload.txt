@@ -1,0 +1,14 @@
+- Create new ESPHome project in Home Assistant:
+  - http://192.168.1.2:8123/hassio/ingress/5c53de3b_esphome
+  - "Install" ==> "Manual Download"
+
+- Use Windows C:\Generic\TasmotaConfigs\SONOFF\tasmotizer-1.2.exe to flash bin onto HUZZAH:
+  - Run executable
+  - choose the binary to flash: from above
+  - Put HUZZAH into bootload mode:
+    - Hold down the GPIO0 button, the red LED will be lit
+    - While holding down GPIO0, click the RESET button
+    - Release RESET, then release GPIO0
+    - When you release the RESET button, the red LED will be lit dimly, this means it's ready to bootload
+  - Select the COM port the USB FTDI adapter connects as (COM8/3)
+  - press Tasmotize!
