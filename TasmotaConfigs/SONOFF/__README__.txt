@@ -30,7 +30,9 @@ SONOFF S31:
     o SetOption53 1
     o # Home Assistant discovery
     o SetOption19 0
-    Backlog SetOption53 1; SetOption19 0
+    o # Prevent multiple power cycles from resetting unit:
+    o SetOption65 1
+    Backlog SetOption53 1; SetOption19 0; SetOption65 1
 
 
 - wrap up
